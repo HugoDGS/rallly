@@ -276,3 +276,15 @@ export function getFinalizePlanGate({
   }
   return null;
 }
+
+/**
+ * A poll whose deadline has passed no longer accepts responses, even while
+ * its status is still "open": the deadline closes voting on its own,
+ * without the organizer having to come back and close the poll.
+ */
+export function isPastDeadline(
+  deadline: Date | null | undefined,
+  now: Date = new Date(),
+) {
+  return deadline != null && deadline.getTime() <= now.getTime();
+}

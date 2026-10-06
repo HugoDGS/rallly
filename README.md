@@ -112,9 +112,17 @@ Le package GHCR doit être passé en **public** (Package settings → Change vis
 
 | Feature | Branche | Statut |
 |---|---|---|
+| #4 — Expiration automatique du sondage | `feature/poll-deadline` | ✅ |
 | #5 — Bloquer le vote sur les dates/heures passées | `feature/block-past-dates` | à faire |
-| #9 — Désactiver les commentaires | `feature/disable-comments` | à faire |
 | Libre — Badge « échéance » | `feature/deadline-badge` | à faire |
+
+> La #9 (désactiver les commentaires) était envisagée, mais elle est déjà entièrement livrée upstream ; remplacée par la #4.
+
+**#4 — Expiration automatique**
+*Périmètre :* l'organisateur fixe une date limite (*Gérer → Date limite de vote*). Une fois passée, plus aucun vote ne peut être ajouté ni modifié :
+le formulaire disparaît et le serveur refuse toute écriture (`lockOpenPoll`, sous verrou de la ligne du sondage), même via un appel direct.
+Un bandeau indique « Clôture des votes le … » puis « Votes clos depuis le … ». Réutilise la colonne `polls.deadline` existante : aucune migration.
+*Démo :* fixer une date limite dans 1 minute → voter (OK) → attendre → le vote est refusé sans action de l'organisateur.
 
 **Feature libre — badge « échéance »**
 *Problème :* un participant ne voit pas d'un coup d'œil s'il est urgent de répondre.
@@ -130,9 +138,8 @@ Le package GHCR doit être passé en **public** (Package settings → Change vis
 
 | Membre | Rôle |
 |---|---|
-| … | Infra & VM — feature #9 |
-| … | Authentik — feature libre |
-| … | CI/CD & sécurité — feature #5 |
+| Hugo Gomes Duarte | Infra (Compose, Authentik, CI) — feature #4 — feature libre |
+| Lilian Sonzogni | Déploiement VM Énov — feature #5 |
 
 ---
 
