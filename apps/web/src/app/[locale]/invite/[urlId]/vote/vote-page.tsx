@@ -64,10 +64,8 @@ export function VotePage({
                 spaceBrandingAllowed={spaceBrandingAllowed}
                 instanceBranding={instanceBranding}
                 hideAttribution={hideAttribution}
+                status={<NextOptionBadge options={view.results} />}
               />
-              <div className="mt-4">
-                <NextOptionBadge options={view.results} />
-              </div>
             </aside>
             <section className="flex flex-1 flex-col lg:min-h-0 lg:border-l">
               <VotePanel

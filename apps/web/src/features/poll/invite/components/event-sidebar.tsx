@@ -1,4 +1,5 @@
 import { MapPinIcon, User2Icon } from "lucide-react";
+import type { ReactNode } from "react";
 import { Trans } from "react-i18next/TransWithoutContext";
 import { PollConferencingSummary } from "@/features/conferencing/components/poll-conferencing-summary";
 import type { PollConferencing } from "@/features/conferencing/schema";
@@ -40,11 +41,14 @@ export async function EventSidebar({
   spaceBrandingAllowed,
   instanceBranding,
   hideAttribution,
+  status,
 }: {
   poll: SidebarPoll;
   spaceBrandingAllowed: boolean;
   instanceBranding: { appName: string; logoIcon?: string };
   hideAttribution: boolean;
+  /** Shown under the title, e.g. how soon the next option starts. */
+  status?: ReactNode;
 }) {
   const { t, i18n } = await getTranslation();
 
@@ -78,6 +82,7 @@ export async function EventSidebar({
           </div>
         ) : null}
         <EventMetaTitle>{poll.title}</EventMetaTitle>
+        {status ? <div className="mt-2">{status}</div> : null}
         <EventMetaDescription className="mt-4" content={poll.description} />
         <EventMetaList className="mt-4">
           {poll.user ? (
