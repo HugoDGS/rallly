@@ -3,6 +3,7 @@ import { Spinner } from "@/components/spinner";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { EventSidebar } from "@/features/poll/invite/components/event-sidebar";
 import { ManagePollButton } from "@/features/poll/vote/components/manage-poll-button";
+import { NextOptionBadge } from "@/features/poll/vote/components/next-option-badge";
 import { VotePageFooter } from "@/features/poll/vote/components/vote-page-footer";
 import { VotePanel } from "@/features/poll/vote/components/vote-panel";
 import type { VotePageView } from "@/features/poll/vote/types";
@@ -64,6 +65,9 @@ export function VotePage({
                 instanceBranding={instanceBranding}
                 hideAttribution={hideAttribution}
               />
+              <div className="mt-4">
+                <NextOptionBadge options={view.results} />
+              </div>
             </aside>
             <section className="flex flex-1 flex-col lg:min-h-0 lg:border-l">
               <VotePanel
