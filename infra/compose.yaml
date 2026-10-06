@@ -1,0 +1,126 @@
+# Stack Rallly + Authentik derrière Caddy.
+# Même fichier en local et sur la VM : seul le .env change.
+
+x-base: &base
+  restart: unless-stopped
+  security_opt: [no-new-privileges:true]
+  cap_drop: [ALL]
+
+x-authentik-env: &authentik-env
+  AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?}
+  AUTHENTIK_POSTGRESQL__HOST: postgres
+  AUTHENTIK_POSTGRESQL__NAME: authentik
+  AUTHENTIK_POSTGRESQL__USER: app
+  AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS:?}
+  AUTHENTIK_EMAIL__HOST: mailpit
+  AUTHENTIK_EMAIL__PORT: 1025
+  AUTHENTIK_EMAIL__FROM: authentik@${DOMAIN}
+  AUTHENTIK_DISABLE_UPDATE_CHECK: "true"
+  AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+
+services:
+  caddy:
+    <<: *base
+    image: docker.io/library/caddy:2.11-alpine
+    cap_add: [NET_BIND_SERVICE]
+    read_only: true
+    ports: ["${HTTP_PORT:-80}:${HTTP_PORT:-80}"] # seul port exposé de la stack
+    environment:
+      DOMAIN: ${DOMAIN:?}
+      HTTP_PORT: ${HTTP_PORT:-80}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      front:
+        # Les conteneurs (Rallly) joignent Authentik par la même URL que le navigateur,
+        # sinon l'issuer OIDC ne correspond pas.
+        aliases: ["${DOMAIN}", "auth.${DOMAIN}"]
+
+  postgres:
+    <<: *base
+    image: docker.io/library/postgres:16-alpine
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${PG_PASS:?}
+      POSTGRES_DB: authentik
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks: [back]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "app", "-d", "authentik"]
+      interval: 5s
+      retries: 10
+
+  authentik-server:
+    <<: *base
+    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG:-2026.8.3}
+    command: server
+    shm_size: 512mb
+    environment:
+      <<: *authentik-env
+      AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_ADMIN_PASSWORD:?}
+      AUTHENTIK_BOOTSTRAP_EMAIL: admin@${DOMAIN}
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [front, back]
+
+  authentik-worker:
+    <<: *base
+    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG:-2026.8.3}
+    command: worker
+    shm_size: 512mb
+    environment:
+      <<: *authentik-env
+      AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_ADMIN_PASSWORD:?}
+      AUTHENTIK_BOOTSTRAP_EMAIL: admin@${DOMAIN}
+      # Lus par le blueprint (!Env)
+      DOMAIN: ${DOMAIN}
+      HTTP_PORT: ${HTTP_PORT:-80}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:?}
+    volumes:
+      - ./authentik/blueprints:/blueprints/custom:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [front, back]
+
+  rallly:
+    <<: *base
+    image: ${RALLLY_IMAGE:?}
+    environment:
+      DATABASE_URL: postgres://app:${PG_PASS}@postgres:5432/rallly
+      SECRET_PASSWORD: ${RALLLY_SECRET:?}
+      NEXT_PUBLIC_BASE_URL: http://${DOMAIN}:${HTTP_PORT:-80}
+      SUPPORT_EMAIL: support@${DOMAIN}
+      NOREPLY_EMAIL: noreply@${DOMAIN}
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_SECURE: "false"
+      EMAIL_LOGIN_ENABLED: "false" # connexion uniquement via Authentik
+      OIDC_NAME: Authentik
+      OIDC_DISCOVERY_URL: http://auth.${DOMAIN}:${HTTP_PORT:-80}/application/o/rallly/.well-known/openid-configuration
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [front, back]
+
+  mailpit:
+    <<: *base
+    image: docker.io/axllent/mailpit:v1.31
+    networks: [front]
+
+networks:
+  front:
+  back:
+    internal: true # postgres n'a aucune route vers l'extérieur
+
+volumes:
+  caddy-data:
+  caddy-config:
+  postgres:
