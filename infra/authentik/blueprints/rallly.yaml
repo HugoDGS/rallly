@@ -1,0 +1,146 @@
+# Config Authentik appliquée automatiquement par le worker au démarrage :
+#   - groupes rallly-admins / rallly-users
+#   - provider OIDC + application Rallly, accès limité aux 2 groupes
+#   - flow d'enrollment par invitation (les invités rejoignent rallly-users)
+#   - comptes de démo alice / bob / eve
+version: 1
+metadata:
+  name: Rallly
+entries:
+  # --- Groupes ---------------------------------------------------------------
+  - model: authentik_core.group
+    id: group-admins
+    identifiers: { name: rallly-admins }
+    attrs:
+      is_superuser: true # accès à l'admin Authentik en plus de Rallly
+
+  - model: authentik_core.group
+    id: group-users
+    identifiers: { name: rallly-users }
+
+  # --- OIDC ------------------------------------------------------------------
+  - model: authentik_providers_oauth2.oauth2provider
+    id: provider
+    identifiers: { name: rallly }
+    attrs:
+      client_type: confidential
+      client_id: !Env OIDC_CLIENT_ID
+      client_secret: !Env OIDC_CLIENT_SECRET
+      grant_types: [authorization_code, refresh_token]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      redirect_uris:
+        - matching_mode: strict
+          url: !Format ["http://%s:%s/api/auth/callback/oidc", !Env DOMAIN, !Env HTTP_PORT]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+
+  - model: authentik_core.application
+    id: app
+    identifiers: { slug: rallly }
+    attrs:
+      name: Rallly
+      provider: !KeyOf provider
+      meta_launch_url: !Format ["http://%s:%s", !Env DOMAIN, !Env HTTP_PORT]
+      policy_engine_mode: any
+
+  # Policies par groupe : seuls les membres de ces groupes accèdent à Rallly.
+  - model: authentik_policies.policybinding
+    identifiers: { target: !KeyOf app, group: !KeyOf group-admins, order: 0 }
+  - model: authentik_policies.policybinding
+    identifiers: { target: !KeyOf app, group: !KeyOf group-users, order: 1 }
+
+  # --- Invitation externe ----------------------------------------------------
+  - model: authentik_flows.flow
+    id: invite-flow
+    identifiers: { slug: rallly-invitation }
+    attrs:
+      name: Invitation Rallly
+      title: Rejoindre Rallly
+      designation: enrollment
+      authentication: require_unauthenticated
+
+  - model: authentik_stages_invitation.invitationstage
+    id: invite-stage
+    identifiers: { name: rallly-invitation }
+    attrs:
+      continue_flow_without_invitation: false
+
+  - model: authentik_stages_prompt.prompt
+    id: field-username
+    identifiers: { name: rallly-invitation-username }
+    attrs: { field_key: username, label: Nom d'utilisateur, type: username, required: true, order: 0 }
+  - model: authentik_stages_prompt.prompt
+    id: field-name
+    identifiers: { name: rallly-invitation-name }
+    attrs: { field_key: name, label: Nom complet, type: text, required: true, order: 1 }
+  - model: authentik_stages_prompt.prompt
+    id: field-email
+    identifiers: { name: rallly-invitation-email }
+    attrs: { field_key: email, label: Email, type: email, required: true, order: 2 }
+  - model: authentik_stages_prompt.prompt
+    id: field-password
+    identifiers: { name: rallly-invitation-password }
+    attrs: { field_key: password, label: Mot de passe, type: password, required: true, order: 3 }
+  - model: authentik_stages_prompt.prompt
+    id: field-password-repeat
+    identifiers: { name: rallly-invitation-password-repeat }
+    attrs: { field_key: password_repeat, label: Mot de passe (confirmation), type: password, required: true, order: 4 }
+
+  - model: authentik_stages_prompt.promptstage
+    id: prompt-stage
+    identifiers: { name: rallly-invitation-prompt }
+    attrs:
+      fields:
+        - !KeyOf field-username
+        - !KeyOf field-name
+        - !KeyOf field-email
+        - !KeyOf field-password
+        - !KeyOf field-password-repeat
+
+  - model: authentik_stages_user_write.userwritestage
+    id: write-stage
+    identifiers: { name: rallly-invitation-write }
+    attrs:
+      user_creation_mode: always_create
+      user_type: external
+      user_path_template: users/external
+      create_users_group: !KeyOf group-users
+
+  - model: authentik_stages_user_login.userloginstage
+    id: login-stage
+    identifiers: { name: rallly-invitation-login }
+
+  - model: authentik_flows.flowstagebinding
+    identifiers: { target: !KeyOf invite-flow, stage: !KeyOf invite-stage, order: 0 }
+  - model: authentik_flows.flowstagebinding
+    identifiers: { target: !KeyOf invite-flow, stage: !KeyOf prompt-stage, order: 10 }
+  - model: authentik_flows.flowstagebinding
+    identifiers: { target: !KeyOf invite-flow, stage: !KeyOf write-stage, order: 20 }
+  - model: authentik_flows.flowstagebinding
+    identifiers: { target: !KeyOf invite-flow, stage: !KeyOf login-stage, order: 30 }
+
+  # --- Comptes de démo -------------------------------------------------------
+  - model: authentik_core.user
+    identifiers: { username: alice }
+    attrs:
+      name: Alice (admin)
+      email: !Format ["alice@%s", !Env DOMAIN]
+      password: !Env DEMO_PASSWORD
+      groups: [!KeyOf group-admins]
+  - model: authentik_core.user
+    identifiers: { username: bob }
+    attrs:
+      name: Bob (utilisateur)
+      email: !Format ["bob@%s", !Env DOMAIN]
+      password: !Env DEMO_PASSWORD
+      groups: [!KeyOf group-users]
+  - model: authentik_core.user
+    identifiers: { username: eve }
+    attrs:
+      name: Eve (sans groupe)
+      email: !Format ["eve@%s", !Env DOMAIN]
+      password: !Env DEMO_PASSWORD

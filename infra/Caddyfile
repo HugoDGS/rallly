@@ -1,0 +1,16 @@
+{
+	admin off
+	auto_https off
+}
+
+http://{$DOMAIN}:{$HTTP_PORT} {
+	reverse_proxy rallly:3000
+}
+
+http://auth.{$DOMAIN}:{$HTTP_PORT} {
+	reverse_proxy authentik-server:9000
+}
+
+http://mail.{$DOMAIN}:{$HTTP_PORT} {
+	reverse_proxy mailpit:8025
+}
