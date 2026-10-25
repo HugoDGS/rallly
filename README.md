@@ -1,145 +1,173 @@
-# Rallly + Authentik — projet « Dev avec Docker » (M2 FullStack)
+# Rallly + Authentik — projet « Dev avec Docker »
 
-Fork de [lukevella/rallly](https://github.com/lukevella/rallly) : Rallly self-hosted derrière un reverse proxy,
-authentification SSO via Authentik (OIDC), déployé en local et sur VM Énov, avec CI GitHub Actions.
+Projet du module *Dev avec Docker* (M2 FullStack, Ynov). C'est un fork de [Rallly](https://github.com/lukevella/rallly),
+un outil de sondage pour planifier des réunions. On l'héberge nous-mêmes avec Docker Compose,
+derrière un reverse proxy, avec une connexion SSO via Authentik (OIDC). Une CI GitHub Actions construit et publie l'image.
 
 ## Architecture
 
 ```
-                navigateur
-                    │  :HTTP_PORT (seul port exposé)
-               ┌────▼────┐                                   réseau front
-               │  Caddy  │──────────────┬───────────────┐
-               └─────────┘              │               │
-      auth.DOMAIN │          DOMAIN     │   mail.DOMAIN │
-       ┌──────────▼───────┐      ┌──────▼─────┐   ┌─────▼─────┐
-       │ authentik-server │◄OIDC─│   rallly   │──►│  mailpit  │
-       │ authentik-worker │      │ (ce fork)  │   │ SMTP lab  │
-       └──────────┬───────┘      └──────┬─────┘   └───────────┘
-                  │                     │                 réseau back (internal)
-                  └──────►┌──────────┐◄─┘
-                          │ postgres │  bases : authentik, rallly
-                          └──────────┘
+                 navigateur
+                     │  port HTTP_PORT (seul port publié)
+                ┌────▼────┐                                réseau front
+                │  Caddy  │──────────────┬───────────────┐
+                └─────────┘              │               │
+       auth.DOMAIN │           DOMAIN    │   mail.DOMAIN │
+        ┌──────────▼───────┐      ┌──────▼─────┐   ┌─────▼─────┐
+        │ authentik-server │◄OIDC─│   rallly   │──►│  mailpit  │
+        │ authentik-worker │      │ (ce fork)  │   │ SMTP lab  │
+        └──────────┬───────┘      └──────┬─────┘   └───────────┘
+                   │                     │           réseau back (interne)
+                   └──────►┌──────────┐◄─┘
+                           │ postgres │  bases authentik + rallly
+                           └──────────┘
 ```
 
 | Service | Image | Rôle |
 |---|---|---|
 | caddy | `caddy:2.11-alpine` | Reverse proxy, point d'entrée unique |
-| postgres | `postgres:16-alpine` | BDD Authentik + Rallly, réseau interne uniquement |
-| authentik-server / worker | `ghcr.io/goauthentik/server:2026.8.3` | IdP OIDC ; config par blueprint |
-| rallly | `ghcr.io/hugodgs/rallly:main` | Application (image construite par la CI depuis ce fork) |
-| mailpit | `axllent/mailpit:v1.31` | SMTP de lab + webmail |
+| postgres | `postgres:16-alpine` | Base de données d'Authentik et de Rallly |
+| authentik-server / worker | `ghcr.io/goauthentik/server:2026.8.3` | Fournisseur d'identité (SSO) |
+| rallly | construite depuis [`infra/rallly/Dockerfile`](infra/rallly/Dockerfile) | L'application |
+| mailpit | `axllent/mailpit:v1.31` | Faux serveur mail pour le lab (les mails sont visibles dans un webmail) |
 
-Fichiers : [`infra/compose.yaml`](infra/compose.yaml), [`infra/Caddyfile`](infra/Caddyfile),
-[`infra/authentik/blueprints/rallly.yaml`](infra/authentik/blueprints/rallly.yaml), [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+- **2 réseaux** : `front` pour ce qui passe par Caddy, `back` pour la base. `back` est marqué `internal`, Postgres n'a donc aucun accès à l'extérieur.
+- **Volume nommé** `postgres` : les données survivent à un `docker compose down`.
+- Fichiers principaux : [`infra/compose.yaml`](infra/compose.yaml), [`infra/Caddyfile`](infra/Caddyfile),
+  [`infra/authentik/blueprints/rallly.yaml`](infra/authentik/blueprints/rallly.yaml), [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
-## Démarrage local
+## Lancer le projet en local
 
 Prérequis : Docker (ou Podman) avec Compose.
 
 ```bash
-git clone https://github.com/HugoDGS/rallly.git && cd rallly/infra
+git clone https://github.com/HugoDGS/rallly.git
+cd rallly/infra
 cp .env.example .env
-# remplir les secrets vides, ex. : openssl rand -base64 36 | tr -d '\n/+='
-docker compose up -d
+# remplir les valeurs vides du .env, par exemple avec : openssl rand -base64 36 | tr -d '\n/+='
+docker compose up -d --build
 ```
 
-Premier démarrage ≈ 2 min (migrations Authentik). Puis :
+Le premier build de l'image Rallly prend une dizaine de minutes. Pour récupérer l'image déjà construite par la CI à la place :
+`docker compose pull && docker compose up -d`.
 
-| URL | |
+Une fois la stack démarrée (Authentik met 1 à 2 minutes au premier lancement) :
+
+| URL | Service |
 |---|---|
 | http://rallly.localhost:8080 | Rallly |
-| http://auth.rallly.localhost:8080/if/admin/ | Admin Authentik (`akadmin`) |
+| http://auth.rallly.localhost:8080/if/admin/ | Administration Authentik (compte `akadmin`) |
 | http://mail.rallly.localhost:8080 | Mailpit |
 
-`*.localhost` est résolu automatiquement par les navigateurs : aucun `/etc/hosts` à modifier.
-`HTTP_PORT=8080` car Docker/Podman *rootless* ne peut pas écouter sur un port < 1024.
+Les navigateurs résolvent `*.localhost` tout seuls, il n'y a rien à ajouter dans `/etc/hosts`.
+On utilise le port 8080 car Docker/Podman en mode *rootless* ne peut pas écouter sur un port inférieur à 1024.
+
+Arrêter la stack : `docker compose down` (ajouter `-v` pour supprimer aussi les données).
 
 ### Comptes de démo
 
-Mot de passe : `DEMO_PASSWORD` du `.env`.
+Ils sont créés automatiquement au démarrage. Mot de passe : la valeur de `DEMO_PASSWORD` dans le `.env`.
 
-| Compte | Groupe | Rallly | Admin Authentik |
+| Compte | Groupe Authentik | Accès à Rallly | Admin Authentik |
 |---|---|---|---|
-| `alice` | rallly-admins | ✅ | ✅ |
-| `bob` | rallly-users | ✅ | ❌ |
-| `eve` | — | ❌ refusé | ❌ |
+| `alice` | `rallly-admins` | oui | oui |
+| `bob` | `rallly-users` | oui | non |
+| `eve` | aucun | refusé | non |
 
-SSO, policies et invitation externe : voir [docs/authentik.md](docs/authentik.md).
+La configuration d'Authentik (SSO, policies par groupe, invitation d'un utilisateur externe) est expliquée dans [docs/authentik.md](docs/authentik.md).
 
-## Déploiement VM Énov
+## Image Rallly
 
-1. Suivre la [doc Énov](https://github.com/Enov-Salle-Serveur/Documentation_Public/blob/main/README.md) : compte → VPN NetBird → clé SSH → création de la VM.
-2. Sur la VM : installer Docker, puis
+L'image est construite avec notre propre [`Dockerfile`](infra/rallly/Dockerfile), en deux étapes (multi-stage) :
+
+1. **build** : installation des dépendances avec pnpm, puis compilation de Rallly. Les fichiers de dépendances sont copiés avant le code pour profiter du cache.
+2. **image finale** : `node:24-slim` à jour (`apt-get upgrade`), avec uniquement le résultat de la compilation, et lancée avec un utilisateur `rallly` qui n'est pas root.
+
+L'image finale fait environ 725 Mo, contre environ 1 Go pour l'image officielle de Rallly.
+Au démarrage, le conteneur applique les migrations de la base puis lance le serveur. Un `HEALTHCHECK` vérifie `/api/status`.
+
+## Déploiement sur la VM Énov
+
+1. Suivre la [documentation Énov](https://github.com/Enov-Salle-Serveur/Documentation_Public/blob/main/README.md) : compte, VPN NetBird, clé SSH, création de la VM.
+2. Sur la VM, installer Docker puis :
    ```bash
-   git clone https://github.com/HugoDGS/rallly.git && cd rallly/infra
-   cp .env.example .env   # DOMAIN=<IP_VM>.sslip.io, HTTP_PORT=80, secrets propres à la VM
-   docker compose pull && docker compose up -d
+   git clone https://github.com/HugoDGS/rallly.git
+   cd rallly/infra
+   cp .env.example .env   # DOMAIN=<IP_VM>.sslip.io, HTTP_PORT=80 et des secrets propres à la VM
+   docker compose pull
+   docker compose up -d
    ```
-3. Mise à jour : `git pull && docker compose pull && docker compose up -d`.
+3. Pour mettre à jour : `git pull && docker compose pull && docker compose up -d`.
 
-**Écarts local / VM** (même `compose.yaml`, seul le `.env` change) :
+On utilise le même `compose.yaml` en local et sur la VM, seul le `.env` change :
 
 | | Local | VM |
 |---|---|---|
-| `DOMAIN` | `rallly.localhost` | `<IP_VM>.sslip.io` (DNS public qui résout vers l'IP) |
-| `HTTP_PORT` | 8080 (rootless) | 80 |
-| Secrets | propres à chaque dev | propres à la VM, partagés hors Git |
+| `DOMAIN` | `rallly.localhost` | `<IP_VM>.sslip.io` (sslip.io renvoie l'IP contenue dans le nom) |
+| `HTTP_PORT` | 8080 | 80 |
+| Image Rallly | construite en local (`--build`) | récupérée sur GHCR (`pull`) |
+| Secrets | propres à chaque poste | propres à la VM, jamais dans Git |
 
-Si le résolveur DNS bloque les réponses en IP privée, ajouter les 3 noms dans le `/etc/hosts` du poste client.
+Si le DNS du poste client bloque les réponses en IP privée, ajouter les trois noms dans son `/etc/hosts`.
 
 ## CI/CD
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml), sur chaque PR et sur `main` :
+Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) se lance sur chaque pull request et sur `main` :
 
-1. **compose** : `docker compose config` valide la stack.
-2. **image** : build de l'image Rallly (`apps/web/Dockerfile`, `SELF_HOSTED=true`) → scan **Trivy** (HIGH/CRITICAL corrigeables, rapport dans le résumé du run) → **push sur GHCR** uniquement sur `main` (`:main` et `:sha-…`).
+1. **Valider le Compose** : `docker compose config` avec un `.env` de test.
+2. **Build + scan de l'image Rallly** : build avec `infra/rallly/Dockerfile`, puis scan Trivy (vulnérabilités HIGH et CRITICAL). Le rapport est affiché dans le résumé du run.
+3. **Publication** : seulement sur `main`, l'image est poussée sur GHCR avec deux tags, `:main` et `:sha-<commit>`.
 
-Le déploiement VM reste manuel (`docker compose pull`) : la VM n'est joignable que via le VPN.
-Le package GHCR doit être passé en **public** (Package settings → Change visibility) pour que la VM puisse le tirer sans login.
+Le déploiement sur la VM reste manuel (`docker compose pull`), car la VM n'est joignable que par le VPN.
 
 ## Sécurité
 
-- **Secrets hors dépôt** : `infra/.env` ignoré par Git, seul `.env.example` est commité ; rien n'est inclus dans les images.
-- **Surface réduite** : un seul port publié (Caddy) ; Postgres sur un réseau `internal` sans accès extérieur, aucun port exposé.
-- **Moindre privilège** : `cap_drop: ALL` + `no-new-privileges` sur tous les services (seules les capacités nécessaires sont rajoutées à Postgres et Caddy) ; Caddy en `read_only`.
-- **Non-root** : Rallly tourne en `nextjs`, Authentik en `authentik` ; contrairement au Compose officiel, le worker n'a **pas** le socket Docker (inutile sans outpost).
-- **Scan** : Trivy à chaque build. Le scan est informatif (`exit-code 0`) : une partie des CVE vient de l'image de base `node` upstream, hors de notre contrôle ; on suit le rapport plutôt que de bloquer la CI.
+- **Secrets hors de l'image et du dépôt** : ils sont dans `infra/.env`, ignoré par Git. Seul `.env.example` est commité.
+- **Un seul port publié** : celui de Caddy. La base de données n'a pas de port publié et reste sur un réseau interne.
+- **Utilisateurs non-root** : Rallly tourne en `rallly`, Authentik en `authentik`, Caddy et Mailpit en `nobody`. Postgres démarre en root puis passe sur l'utilisateur `postgres`.
+- **Moindre privilège** : `cap_drop: ALL` et `no-new-privileges` sur tous les services. On rajoute seulement les capacités nécessaires à Postgres et Caddy (`NET_BIND_SERVICE`, demandée par son binaire).
+- **Lecture seule** : Caddy et Mailpit sont en `read_only`, leurs fichiers temporaires vont dans un `tmpfs`. Caddy n'a plus de volume (pas de certificat à garder en HTTP).
+- **Pas de socket Docker** : le worker Authentik ne monte pas `/var/run/docker.sock` (le Compose officiel le fait, on n'en a pas besoin).
+- **Scan Trivy** à chaque build. Pour l'instant le scan n'est pas bloquant : les vulnérabilités restantes viennent des dépendances Node de Rallly.
+- **Moins d'appels sortants** : notre image ne contacte pas `api.rallly.co` et la télémétrie de Next.js est désactivée. Côté Authentik, la vérification des mises à jour et l'envoi des rapports d'erreur sont désactivés.
 
-**Limites assumées** : HTTP sans TLS (réseau privé VPN) ; webmail Mailpit sans authentification (SMTP de lab) ; un seul utilisateur Postgres pour les deux bases.
+**Limites connues** : HTTP sans TLS (la VM n'est accessible que par le VPN), webmail Mailpit sans mot de passe et non conservé (outil de lab), un seul utilisateur Postgres pour les deux bases.
 
 ## Features Rallly
 
-| Feature | Branche | Statut |
-|---|---|---|
-| #4 — Expiration automatique du sondage | `feature/poll-deadline` | ✅ |
-| #5 — Bloquer le vote sur les dates/heures passées | `feature/block-past-dates` | à faire |
-| Libre — Badge « échéance » | `feature/deadline-badge` | à faire |
+| Feature | Responsable | Branche | Statut |
+|---|---|---|---|
+| #4 — Expiration automatique du sondage | Hugo | `feature/poll-deadline` | terminée |
+| #5 — Bloquer le vote sur les dates passées | Lilian | `feature/block-past-dates` | à faire |
+| Libre — Badge « prochain créneau » | Hugo | `feature/deadline-badge` | en review (PR #4) |
 
-> La #9 (désactiver les commentaires) était envisagée, mais elle est déjà entièrement livrée upstream ; remplacée par la #4.
+> Au départ on avait choisi la #9 (désactiver les commentaires), mais elle existe déjà dans Rallly. On l'a remplacée par la #4.
 
-**#4 — Expiration automatique**
-*Périmètre :* l'organisateur fixe une date limite (*Gérer → Date limite de vote*). Une fois passée, plus aucun vote ne peut être ajouté ni modifié :
-le formulaire disparaît et le serveur refuse toute écriture (`lockOpenPoll`, sous verrou de la ligne du sondage), même via un appel direct.
-Un bandeau indique « Clôture des votes le … » puis « Votes clos depuis le … ». Réutilise la colonne `polls.deadline` existante : aucune migration.
-*Démo :* fixer une date limite dans 1 minute → voter (OK) → attendre → le vote est refusé sans action de l'organisateur.
+### #4 — Expiration automatique
 
-**Feature libre — badge « échéance »**
-*Problème :* un participant ne voit pas d'un coup d'œil s'il est urgent de répondre.
-*Périmètre :* sur la page d'un sondage, un badge affiche le temps restant avant le prochain créneau à venir
-(« Prochain créneau dans 3 jours ») ou « Tous les créneaux sont passés ». Front uniquement, sans migration.
+L'organisateur fixe une date limite de vote (*Gérer → Date limite de vote*). Une fois la date passée, on ne peut plus voter ni modifier son vote.
+Le formulaire disparaît et le serveur refuse aussi les votes envoyés directement à l'API. Un bandeau affiche « Clôture des votes le … », puis « Votes clos depuis le … ».
+On réutilise la colonne `deadline` qui existait déjà dans la base, donc il n'y a pas de migration.
 
-## Workflow Git
+*Démo* : mettre une date limite dans 1 minute, voter (ça marche), attendre, revoter (c'est refusé).
 
-- `main` protégée : PR obligatoire, CI verte, 1 review.
-- Une branche par feature (`feature/…`), une branche pour l'infra (`infra/…`).
+### Feature libre — badge « prochain créneau »
+
+*Problème* : en ouvrant un sondage, un participant ne voit pas tout de suite si c'est urgent de répondre.
+*Solution* : sous le titre du sondage, un badge indique le temps restant avant le prochain créneau (« Prochain créneau dans 3 jours »),
+ou « Tous les créneaux sont passés ». Modification uniquement côté interface.
+
+## Organisation Git
+
+- `main` est protégée : on passe obligatoirement par une pull request, et la CI doit être verte pour merger.
+- Une branche par sujet : `feature/…` pour les features, `infra/…` pour l'infrastructure.
 
 ## Équipe
 
 | Membre | Rôle |
 |---|---|
-| Hugo Gomes Duarte | Infra (Compose, Authentik, CI) — feature #4 — feature libre |
-| Lilian Sonzogni | Déploiement VM Énov — feature #5 |
+| Hugo Gomes Duarte | Infrastructure (Compose, Authentik, CI), feature #4, feature libre |
+| Lilian Sonzogni | Déploiement sur la VM Énov, feature #5 |
 
 ---
 
