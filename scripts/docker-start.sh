@@ -10,4 +10,5 @@ if [ "$MAINTENANCE_MODE" = "true" ]; then
 else
   npx prisma migrate deploy --config=./prisma.config.ts
 fi
-node apps/web/server.js
+# exec : node remplace le shell et reçoit SIGTERM (arrêt propre du conteneur)
+exec node apps/web/server.js
