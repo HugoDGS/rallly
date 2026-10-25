@@ -27,7 +27,7 @@ authentification SSO via Authentik (OIDC), déployé en local et sur VM Énov, a
 | caddy | `caddy:2.11-alpine` | Reverse proxy, point d'entrée unique |
 | postgres | `postgres:16-alpine` | BDD Authentik + Rallly, réseau interne uniquement |
 | authentik-server / worker | `ghcr.io/goauthentik/server:2026.8.3` | IdP OIDC ; config par blueprint |
-| rallly | `ghcr.io/hugodgs/rallly:main` | Application (image construite par la CI depuis ce fork) |
+| rallly | `ghcr.io/hugodgs/rallly:main` | Application, image construite depuis ce fork ([`infra/rallly/Dockerfile`](infra/rallly/Dockerfile)) |
 | mailpit | `axllent/mailpit:v1.31` | SMTP de lab + webmail |
 
 Fichiers : [`infra/compose.yaml`](infra/compose.yaml), [`infra/Caddyfile`](infra/Caddyfile),
@@ -41,9 +41,11 @@ Prérequis : Docker (ou Podman) avec Compose.
 git clone https://github.com/HugoDGS/rallly.git && cd rallly/infra
 cp .env.example .env
 # remplir les secrets vides, ex. : openssl rand -base64 36 | tr -d '\n/+='
-docker compose up -d
+docker compose up -d --build
 ```
 
+Le build de l'image Rallly prend une dizaine de minutes la première fois.
+Pour utiliser l'image déjà publiée par la CI à la place : `docker compose pull && docker compose up -d`.
 Premier démarrage ≈ 2 min (migrations Authentik). Puis :
 
 | URL | |
@@ -93,7 +95,7 @@ Si le résolveur DNS bloque les réponses en IP privée, ajouter les 3 noms dans
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml), sur chaque PR et sur `main` :
 
 1. **compose** : `docker compose config` valide la stack.
-2. **image** : build de l'image Rallly (`apps/web/Dockerfile`, `SELF_HOSTED=true`) → scan **Trivy** (HIGH/CRITICAL corrigeables, rapport dans le résumé du run) → **push sur GHCR** uniquement sur `main` (`:main` et `:sha-…`).
+2. **image** : build de l'image Rallly (`infra/rallly/Dockerfile`) → scan **Trivy** (HIGH/CRITICAL corrigeables, rapport dans le résumé du run) → **push sur GHCR** uniquement sur `main` (`:main` et `:sha-…`).
 
 Le déploiement VM reste manuel (`docker compose pull`) : la VM n'est joignable que via le VPN.
 Le package GHCR doit être passé en **public** (Package settings → Change visibility) pour que la VM puisse le tirer sans login.

@@ -43,10 +43,8 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: apps/web/Dockerfile
-          build-args: |
-            SELF_HOSTED=true
-            APP_VERSION=${{ github.sha }}
+          file: infra/rallly/Dockerfile
+          build-args: APP_VERSION=${{ github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           load: true
