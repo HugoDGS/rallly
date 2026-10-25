@@ -103,10 +103,22 @@ Le package GHCR doit être passé en **public** (Package settings → Change vis
 - **Secrets hors dépôt** : `infra/.env` ignoré par Git, seul `.env.example` est commité ; rien n'est inclus dans les images.
 - **Surface réduite** : un seul port publié (Caddy) ; Postgres sur un réseau `internal` sans accès extérieur, aucun port exposé.
 - **Moindre privilège** : `cap_drop: ALL` + `no-new-privileges` sur tous les services (seules les capacités nécessaires sont rajoutées à Postgres et Caddy) ; Caddy en `read_only`.
-- **Non-root** : Rallly tourne en `nextjs`, Authentik en `authentik` ; contrairement au Compose officiel, le worker n'a **pas** le socket Docker (inutile sans outpost).
-- **Scan** : Trivy à chaque build. Le scan est informatif (`exit-code 0`) : une partie des CVE vient de l'image de base `node` upstream, hors de notre contrôle ; on suit le rapport plutôt que de bloquer la CI.
+- **Non-root** : Rallly tourne en `nextjs`, Authentik en `authentik`, Caddy et Mailpit en `nobody` (Caddy garde uniquement `NET_BIND_SERVICE`, requis par son binaire) ; Postgres démarre en root puis bascule sur `postgres`. Contrairement au Compose officiel, le worker Authentik n'a **pas** le socket Docker (inutile sans outpost).
+- **Lecture seule** : Caddy et Mailpit en `read_only`, données temporaires en `tmpfs`.
+- **Scan** : Trivy à chaque build (HIGH/CRITICAL corrigeables), rapport dans le résumé du run. Il est informatif (`exit-code 0`) : voir l'analyse ci-dessous.
 
-**Limites assumées** : HTTP sans TLS (réseau privé VPN) ; webmail Mailpit sans authentification (SMTP de lab) ; un seul utilisateur Postgres pour les deux bases.
+### Analyse du scan Trivy (image `ghcr.io/hugodgs/rallly:main`, 06/10/2026)
+
+| Origine | Paquets | Vulnérabilités | Exploitable dans notre déploiement ? |
+|---|---|---|---|
+| Image de base Debian 12 | `perl-base` | 3 CRITICAL, 4 HIGH | **Non** : Perl n'est jamais appelé par l'application. Correctif disponible (`deb12u4`) via un `apt-get upgrade` dans le Dockerfile. |
+| npm fourni par l'image `node` | `brace-expansion`, `tar`, `undici`, `ip-address` | 7 HIGH | **Faible** : npm ne sert qu'au démarrage (`npx prisma migrate deploy`), sans entrée utilisateur. |
+| Dépendances de Rallly | `fast-xml-parser` (SDK S3), `mysql2`, `deepmerge-ts` | 1 CRITICAL, 4 HIGH | **Non** : ni S3 ni MySQL ne sont utilisés (Postgres, pas de stockage objet). Correction attendue upstream. |
+
+Conclusion : aucune vulnérabilité atteignable depuis l'extérieur dans notre configuration ; bloquer la CI sur ces résultats empêcherait tout build sans gain de sécurité réel.
+Piste d'amélioration : `apt-get upgrade` dans l'image et suivi des montées de version upstream.
+
+**Limites assumées** : HTTP sans TLS (réseau privé VPN) ; webmail Mailpit sans authentification et non persisté (SMTP de lab) ; un seul utilisateur Postgres pour les deux bases.
 
 ## Features Rallly
 
