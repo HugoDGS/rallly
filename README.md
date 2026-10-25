@@ -158,7 +158,7 @@ ou « Tous les créneaux sont passés ». Modification uniquement côté interfa
 
 ## Organisation Git
 
-- `main` est protégée : on passe par une pull request, avec la CI verte et 1 review.
+- `main` est protégée : on passe obligatoirement par une pull request, et la CI doit être verte pour merger.
 - Une branche par sujet : `feature/…` pour les features, `infra/…` pour l'infrastructure.
 
 ## Équipe
