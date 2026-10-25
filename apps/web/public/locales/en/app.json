@@ -1168,5 +1168,9 @@
   "pollDeadlineDescription": "Once this date has passed, participants can no longer add or change their votes.",
   "pollDeadlineRemove": "Remove deadline",
   "pollDeadlinePassed": "Voting closed on {date}",
-  "pollDeadlineUpcoming": "Voting closes on {date}"
+  "pollDeadlineUpcoming": "Voting closes on {date}",
+  "nextOptionIn": "Next option {relative}",
+  "nextOptionNone": "All options are in the past",
+  "nextOptionNow": "An option is under way",
+  "nextOptionToday": "Next option is today"
 }
