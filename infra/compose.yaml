@@ -97,7 +97,12 @@ services:
 
   rallly:
     <<: *base
-    image: ${RALLLY_IMAGE:?}
+    # docker compose up --build : construit l'image depuis ce dépôt
+    # docker compose pull       : récupère celle publiée par la CI (VM)
+    build:
+      context: ..
+      dockerfile: infra/rallly/Dockerfile
+    image: ${RALLLY_IMAGE:-ghcr.io/hugodgs/rallly:main}
     environment:
       DATABASE_URL: postgres://app:${PG_PASS}@postgres:5432/rallly
       SECRET_PASSWORD: ${RALLLY_SECRET:?}
