@@ -1,56 +1,59 @@
-# Authentik — configuration et démo
+# Authentik : configuration et démo
 
-Toute la configuration est **déclarative** : `infra/authentik/blueprints/rallly.yaml` est appliqué
-automatiquement par le worker au démarrage (et à chaque modification du fichier).
-Rien à cliquer pour installer ; ce document explique ce qui est créé et comment le démontrer.
+Toute la configuration d'Authentik est dans un blueprint : [`infra/authentik/blueprints/rallly.yaml`](../infra/authentik/blueprints/rallly.yaml).
+Le worker l'applique tout seul au démarrage, et à chaque fois que le fichier change. Il n'y a donc rien à configurer à la main.
+Ce document explique ce que le blueprint crée et comment le montrer en démo.
 
-Admin Authentik : `http://auth.<DOMAIN>:<HTTP_PORT>/if/admin/` — compte `akadmin` / `AUTHENTIK_ADMIN_PASSWORD`.
+Administration d'Authentik : `http://auth.<DOMAIN>:<HTTP_PORT>/if/admin/`, avec le compte `akadmin` et le mot de passe `AUTHENTIK_ADMIN_PASSWORD` du `.env`.
 
-## 1. SSO OIDC (Authentik = IdP, Rallly = client)
+## 1. SSO avec OIDC
+
+Authentik est le fournisseur d'identité, Rallly est le client.
 
 | Élément | Valeur |
 |---|---|
-| Provider | OAuth2/OIDC `rallly`, client confidentiel, `client_id` = `OIDC_CLIENT_ID`, secret = `OIDC_CLIENT_SECRET` |
-| Redirect URI (stricte) | `http://<DOMAIN>:<HTTP_PORT>/api/auth/callback/oidc` |
+| Provider | `rallly`, de type OAuth2/OIDC, client confidentiel (`OIDC_CLIENT_ID` et `OIDC_CLIENT_SECRET` du `.env`) |
+| Redirect URI | `http://<DOMAIN>:<HTTP_PORT>/api/auth/callback/oidc`, en correspondance stricte |
 | Scopes | `openid`, `email`, `profile` |
-| Application | `rallly` (slug utilisé dans l'URL de discovery) |
-| Côté Rallly | `OIDC_DISCOVERY_URL=http://auth.<DOMAIN>:<HTTP_PORT>/application/o/rallly/.well-known/openid-configuration` ; `EMAIL_LOGIN_ENABLED=false` → connexion uniquement via Authentik |
+| Application | `rallly` (c'est ce nom qui apparaît dans l'URL de discovery) |
 
-**Démo :** ouvrir Rallly → *Se connecter avec Authentik* → `bob` → retour sur Rallly connecté, nom/email venant d'Authentik.
+Côté Rallly, on donne l'URL de discovery dans `OIDC_DISCOVERY_URL`. On met aussi `EMAIL_LOGIN_ENABLED=false` pour que la seule façon de se connecter soit de passer par Authentik.
 
-## 2. Policies par groupe
+*Démo* : ouvrir Rallly, cliquer sur « Authentik », se connecter avec `bob`. On revient sur Rallly connecté, avec le nom et l'e-mail de bob venant d'Authentik.
+
+## 2. Accès par groupe
 
 | Groupe | Droits |
 |---|---|
-| `rallly-admins` | Accès à Rallly **+** super-utilisateur Authentik (console admin) |
-| `rallly-users` | Accès à Rallly uniquement |
-| *(aucun groupe)* | **Refusé** sur Rallly |
+| `rallly-admins` | accès à Rallly et à l'administration d'Authentik |
+| `rallly-users` | accès à Rallly seulement |
+| aucun groupe | accès à Rallly refusé |
 
-Mécanisme : deux *group bindings* sur l'application `rallly` (Applications → Rallly → *Policy / Group / User Bindings*),
-mode `any` → il suffit d'appartenir à l'un des deux groupes.
+L'application `rallly` a deux liaisons de groupe (*Applications → Rallly → Policy / Group / User Bindings*), en mode `any` :
+il suffit d'être dans un des deux groupes pour avoir accès.
 
-**Démo :**
-- `alice` → Rallly OK **et** accès à `/if/admin/`
-- `bob` → Rallly OK, pas d'admin
-- `eve` → authentifiée sur Authentik mais **accès refusé** à Rallly
+*Démo* :
+- `alice` peut ouvrir Rallly et aussi l'administration d'Authentik (`/if/admin/`) ;
+- `bob` peut ouvrir Rallly, mais pas l'administration ;
+- `eve` arrive à se connecter sur Authentik, mais l'accès à Rallly lui est refusé.
 
-## 3. Invitation d'un utilisateur externe
+## 3. Inviter un utilisateur externe
 
-Le blueprint crée le flow d'enrollment `rallly-invitation` :
-`Invitation` → `Prompt` (username, nom, email, mot de passe) → `User Write` (type *external*, ajout au groupe `rallly-users`) → `User Login`.
-Sans lien d'invitation valide, le flow refuse l'inscription.
+Le blueprint crée un flow d'inscription, `rallly-invitation`, qui enchaîne quatre étapes :
+vérifier l'invitation, demander les infos (identifiant, nom, e-mail, mot de passe), créer le compte (de type *external*, dans le groupe `rallly-users`), puis connecter l'utilisateur.
+Sans lien d'invitation valide, l'inscription est refusée.
 
-**Démo (≈1 min) :**
-1. Admin Authentik → *Directory → Invitations → Create* : nom `demo-invite`, flow `rallly-invitation`, *Single use* coché, expiration au choix.
+*Démo* :
+1. Dans l'administration d'Authentik : *Directory → Invitations → Create*. Nom `demo-invite`, flow `rallly-invitation`, cocher *Single use*.
 2. Copier le lien généré (`…/if/flow/rallly-invitation/?itoken=…`).
-3. Dans une fenêtre privée : ouvrir le lien → remplir le formulaire → compte créé et connecté.
-4. Ouvrir Rallly → *Se connecter avec Authentik* → accès OK (l'invité est dans `rallly-users`).
-5. Rouvrir le même lien → refusé (usage unique).
+3. Dans une fenêtre de navigation privée, ouvrir le lien et remplir le formulaire. Le compte est créé et connecté.
+4. Ouvrir Rallly et se connecter avec Authentik : ça marche, puisque l'invité est dans `rallly-users`.
+5. Rouvrir le même lien : il est refusé, car il ne sert qu'une fois.
 
-## Pièges rencontrés
+## Problèmes rencontrés
 
-- **Issuer OIDC** : Rallly (conteneur) doit joindre Authentik par **la même URL** que le navigateur, sinon l'`issuer` du token ne correspond pas.
-  → alias réseau `auth.<DOMAIN>` sur le conteneur Caddy.
-- **Provider créé par blueprint** : `grant_types` est vide par défaut → erreur *invalid_request / The request is otherwise malformed*.
-  → `grant_types: [authorization_code, refresh_token]`.
-- **Redirect URI** : correspondance stricte, port compris (`:8080` en local).
+- **Issuer OIDC** : Rallly, depuis son conteneur, doit joindre Authentik avec la même URL que le navigateur. Sinon l'`issuer` du token ne correspond pas et la connexion échoue.
+  On a réglé ça en ajoutant l'alias réseau `auth.<DOMAIN>` au conteneur Caddy.
+- **Provider créé par le blueprint** : par défaut, son champ `grant_types` est vide, ce qui donne l'erreur *invalid_request / The request is otherwise malformed*.
+  Il faut écrire `grant_types: [authorization_code, refresh_token]` dans le blueprint.
+- **Redirect URI** : la correspondance est stricte, port compris. En local, il ne faut pas oublier le `:8080`.
