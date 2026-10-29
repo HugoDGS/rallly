@@ -45,11 +45,15 @@ git clone https://github.com/HugoDGS/rallly.git
 cd rallly/infra
 cp .env.example .env
 # remplir les valeurs vides du .env, par exemple avec : openssl rand -base64 36 | tr -d '\n/+='
-docker compose up -d --build
+docker compose -f compose.yaml -f compose.dev.yaml up -d
 ```
 
-Le premier build de l'image Rallly prend une dizaine de minutes. Pour récupérer l'image déjà construite par la CI à la place :
-`docker compose pull && docker compose up -d`.
+C'est le **mode dev** : pas de build d'image pour Rallly. [`infra/compose.dev.yaml`](infra/compose.dev.yaml) remplace le service `rallly`
+par un conteneur `node:24-slim` qui monte le dépôt (bind mount) et lance `next dev`. Une modification du code est visible
+dans le navigateur sans rien relancer. Le premier démarrage prend quelques minutes (`pnpm install`), les suivants sont rapides
+grâce au volume `pnpm-store`. Logs : `docker compose logs -f rallly`.
+
+Pour tester l'image de production, celle que la CI construit et publie : `docker compose pull && docker compose up -d`.
 
 Une fois la stack démarrée (Authentik met 1 à 2 minutes au premier lancement) :
 
@@ -98,6 +102,8 @@ Au démarrage, le conteneur applique les migrations de la base puis lance le ser
    docker compose up -d
    ```
 3. Pour mettre à jour : `git pull && docker compose pull && docker compose up -d`.
+4. Pour la démo d'une feature : mettre dans le `.env` l'image de sa branche, par exemple
+   `RALLLY_IMAGE=ghcr.io/hugodgs/rallly:feature-poll-deadline`, puis `docker compose pull && docker compose up -d`.
 
 On utilise le même `compose.yaml` en local et sur la VM, seul le `.env` change :
 
@@ -105,20 +111,22 @@ On utilise le même `compose.yaml` en local et sur la VM, seul le `.env` change 
 |---|---|---|
 | `DOMAIN` | `rallly.localhost` | `<IP_VM>.sslip.io` (sslip.io renvoie l'IP contenue dans le nom) |
 | `HTTP_PORT` | 8080 | 80 |
-| Image Rallly | construite en local (`--build`) | récupérée sur GHCR (`pull`) |
+| Rallly | code monté + `next dev` (`compose.dev.yaml`) | image GHCR construite par la CI (`pull`) |
 | Secrets | propres à chaque poste | propres à la VM, jamais dans Git |
 
 Si le DNS du poste client bloque les réponses en IP privée, ajouter les trois noms dans son `/etc/hosts`.
 
 ## CI/CD
 
-Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) se lance sur chaque pull request et sur `main` :
+Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) se lance sur chaque pull request et à chaque push sur `main` ou sur une branche `feature/…` :
 
 1. **Valider le Compose** : `docker compose config` avec un `.env` de test.
 2. **Build** de l'image avec `infra/rallly/Dockerfile`.
 3. **Test** : on lance l'image avec une base Postgres de test et on vérifie que `/api/status` répond (donc que les migrations passent et que le serveur démarre).
 4. **Scan Trivy** : un rapport HIGH + CRITICAL est affiché dans le résumé du run, puis un second scan **fait échouer le job** s'il reste une faille CRITICAL corrigeable.
-5. **Publication** : seulement sur `main` et si toutes les étapes d'avant sont vertes, l'image est poussée sur GHCR avec deux tags, `:main` et `:sha-<commit>`.
+5. **Publication** : sur un push (pas sur une pull request) et si toutes les étapes d'avant sont vertes, l'image est poussée sur GHCR
+   avec deux tags : le nom de la branche (`:main`, `:feature-poll-deadline`…, les `/` deviennent des `-`) et `:sha-<commit>`.
+   Comme `main` ne contient pas les features, chaque branche de feature a sa propre image pour la démo sur la VM.
 
 Chaque étape bloque la suivante : une image qui ne démarre pas ou qui a une faille critique n'est jamais publiée.
 On bloque seulement sur CRITICAL : les HIGH restants viennent de dépendances indirectes de Rallly (`undici`, `brace-expansion`), qu'on ne peut pas mettre à jour sans risquer de casser l'application. Ils restent visibles dans le rapport.
@@ -141,7 +149,8 @@ Le déploiement sur la VM reste manuel (`docker compose pull`), car la VM n'est 
 ## Features Rallly
 
 Chaque feature vit dans sa propre branche, qui ne contient que cette feature (en plus de l'infra). `main` ne contient que l'infrastructure.
-Pour tester une feature : `git switch <branche>` puis `docker compose up -d --build` dans `infra/`.
+Pour tester une feature en mode dev : `git switch <branche>`, le conteneur `rallly` recharge le code tout seul
+(relancer `docker compose -f compose.yaml -f compose.dev.yaml restart rallly` si les dépendances ou le schéma Prisma changent).
 
 | Feature | Responsable | Branche | Statut |
 |---|---|---|---|

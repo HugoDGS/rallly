@@ -106,11 +106,8 @@ services:
     networks: [front, back]
 
   rallly:
-    # docker compose up --build : construit l'image depuis ce dépôt
-    # docker compose pull       : récupère celle publiée par la CI (VM)
-    build:
-      context: ..
-      dockerfile: infra/rallly/Dockerfile
+    # Image construite et publiée par la CI (docker compose pull).
+    # En dev, compose.dev.yaml remplace ce service par le code monté en direct.
     image: ${RALLLY_IMAGE}
     restart: unless-stopped
     security_opt: [no-new-privileges:true]
