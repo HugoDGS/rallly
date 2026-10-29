@@ -102,6 +102,8 @@ Au démarrage, le conteneur applique les migrations de la base puis lance le ser
    docker compose up -d
    ```
 3. Pour mettre à jour : `git pull && docker compose pull && docker compose up -d`.
+4. Pour la démo d'une feature : mettre dans le `.env` l'image de sa branche, par exemple
+   `RALLLY_IMAGE=ghcr.io/hugodgs/rallly:feature-poll-deadline`, puis `docker compose pull && docker compose up -d`.
 
 On utilise le même `compose.yaml` en local et sur la VM, seul le `.env` change :
 
@@ -116,13 +118,15 @@ Si le DNS du poste client bloque les réponses en IP privée, ajouter les trois 
 
 ## CI/CD
 
-Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) se lance sur chaque pull request et sur `main` :
+Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) se lance sur chaque pull request et à chaque push sur `main` ou sur une branche `feature/…` :
 
 1. **Valider le Compose** : `docker compose config` avec un `.env` de test.
 2. **Build** de l'image avec `infra/rallly/Dockerfile`.
 3. **Test** : on lance l'image avec une base Postgres de test et on vérifie que `/api/status` répond (donc que les migrations passent et que le serveur démarre).
 4. **Scan Trivy** : un rapport HIGH + CRITICAL est affiché dans le résumé du run, puis un second scan **fait échouer le job** s'il reste une faille CRITICAL corrigeable.
-5. **Publication** : seulement sur `main` et si toutes les étapes d'avant sont vertes, l'image est poussée sur GHCR avec deux tags, `:main` et `:sha-<commit>`.
+5. **Publication** : sur un push (pas sur une pull request) et si toutes les étapes d'avant sont vertes, l'image est poussée sur GHCR
+   avec deux tags : le nom de la branche (`:main`, `:feature-poll-deadline`…, les `/` deviennent des `-`) et `:sha-<commit>`.
+   Comme `main` ne contient pas les features, chaque branche de feature a sa propre image pour la démo sur la VM.
 
 Chaque étape bloque la suivante : une image qui ne démarre pas ou qui a une faille critique n'est jamais publiée.
 On bloque seulement sur CRITICAL : les HIGH restants viennent de dépendances indirectes de Rallly (`undici`, `brace-expansion`), qu'on ne peut pas mettre à jour sans risquer de casser l'application. Ils restent visibles dans le rapport.
