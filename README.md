@@ -90,31 +90,70 @@ L'image est construite avec notre propre [`Dockerfile`](infra/rallly/Dockerfile)
 L'image finale fait environ 725 Mo, contre environ 1 Go pour l'image officielle de Rallly.
 Au démarrage, le conteneur applique les migrations de la base puis lance le serveur. Un `HEALTHCHECK` vérifie `/api/status`.
 
-## Déploiement sur la VM Énov
+## Déploiement sur la VM
 
-1. Suivre la [documentation Énov](https://github.com/Enov-Salle-Serveur/Documentation_Public/blob/main/README.md) : compte, VPN NetBird, clé SSH, création de la VM.
-2. Sur la VM, installer Docker puis :
-   ```bash
-   git clone https://github.com/HugoDGS/rallly.git
-   cd rallly/infra
-   cp .env.example .env   # DOMAIN=<IP_VM>.sslip.io, HTTP_PORT=80 et des secrets propres à la VM
-   docker compose pull
-   docker compose up -d
-   ```
-3. Pour mettre à jour : `git pull && docker compose pull && docker compose up -d`.
-4. Pour la démo d'une feature : mettre dans le `.env` l'image de sa branche, par exemple
-   `RALLLY_IMAGE=ghcr.io/hugodgs/rallly:feature-poll-deadline`, puis `docker compose pull && docker compose up -d`.
+La VM est hébergée sur le serveur personnel de Lilian, avec l'accord du prof : une VM Incus (Debian 13, 4 vCPU, 8 Go de RAM,
+60 Go de disque, Docker), **isolée** du réseau où elle tourne. Elle sort sur Internet (pour `git pull` et `docker compose pull`),
+mais ne peut joindre ni le serveur, ni le réseau local. On n'y entre que par un **Cloudflare Tunnel**, connexion sortante du serveur
+vers Cloudflare : la VM n'a besoin d'aucun port ouvert sur la box.
 
-On utilise le même `compose.yaml` en local et sur la VM, seul le `.env` change :
+```
+ navigateur ──HTTPS──► Cloudflare ──tunnel chiffré──► serveur ──HTTP──► VM : Caddy :80 ──► stack (comme en local)
+             (certificat, Access)
+```
+
+| Adresse | Service | Accès |
+|---|---|---|
+| https://rallly-ynov.liliansonzogni.fr | Rallly | public, connexion via Authentik |
+| https://auth-ynov.liliansonzogni.fr | Authentik | public (c'est lui qui authentifie) |
+| https://mail-ynov.liliansonzogni.fr | Mailpit | **Cloudflare Access** : adresses `@ynov.com` de l'équipe et du prof, code à usage unique par mail |
+| https://ssh-ynov.liliansonzogni.fr | SSH | **Cloudflare Access**, terminal dans le navigateur |
+
+**Se connecter en SSH** : rien à installer. On ouvre `ssh-ynov`, on saisit son adresse `@ynov.com` et le code reçu par mail,
+et un terminal s'ouvre dans le navigateur. Le compte Linux est le début de l'adresse (`prenom.nom`). Access signe pour chaque
+session un certificat SSH valable quelques minutes : pas de mot de passe ni de clé à gérer. Chacun a `sudo` et `docker` dans la VM.
+
+### Déployer
+
+Premier déploiement, depuis la VM (dossier partagé `/srv/projet`) :
+```bash
+cd /srv/projet
+git clone https://github.com/HugoDGS/rallly.git
+cd rallly/infra
+cp .env.example .env   # valeurs « VM » ci-dessous, secrets générés sur la VM (openssl rand)
+docker compose pull
+docker compose up -d
+```
+
+- Mettre à jour : `git pull && docker compose pull && docker compose up -d`.
+- Démo d'une feature : mettre l'image de sa branche dans le `.env`, par exemple
+  `RALLLY_IMAGE=ghcr.io/hugodgs/rallly:feature-block-past-dates`, puis `docker compose pull && docker compose up -d`.
+  La VM ne construit jamais rien.
+- Avant chaque gros déploiement, Lilian prend un instantané de la VM, pour pouvoir revenir en arrière.
+
+### Local et VM
+
+Le même `compose.yaml` sert partout, seul le `.env` change :
 
 | | Local | VM |
 |---|---|---|
-| `DOMAIN` | `rallly.localhost` | `<IP_VM>.sslip.io` (sslip.io renvoie l'IP contenue dans le nom) |
+| `DOMAIN` | `rallly.localhost` | `ynov.liliansonzogni.fr` (sert seulement aux alias internes et aux adresses mail de démo) |
 | `HTTP_PORT` | 8080 | 80 |
+| `RALLLY_HOST`, `AUTH_HOST`, `MAIL_HOST` | absents : `DOMAIN`, `auth.DOMAIN`, `mail.DOMAIN` | `rallly-ynov.`, `auth-ynov.`, `mail-ynov.liliansonzogni.fr` |
+| `RALLLY_PUBLIC_URL`, `AUTH_PUBLIC_URL` | absents : `http://…:8080` | `https://rallly-ynov.liliansonzogni.fr`, `https://auth-ynov.liliansonzogni.fr` |
+| TLS | aucun | terminé par Cloudflare. `TRUSTED_PROXIES=private_ranges` : Caddy garde le `X-Forwarded-Proto: https` du tunnel, sinon Authentik construit ses URL en http |
 | Rallly | code monté + `next dev` (`compose.dev.yaml`) | image GHCR construite par la CI (`pull`) |
-| Secrets | propres à chaque poste | propres à la VM, jamais dans Git |
+| Secrets | propres à chaque poste | générés sur la VM, jamais dans Git |
+| Accès | le poste lui-même | Internet, via Cloudflare (Mailpit et SSH derrière Access) |
 
-Si le DNS du poste client bloque les réponses en IP privée, ajouter les trois noms dans son `/etc/hosts`.
+Trois choix à connaître :
+- **Noms à un seul niveau** (`rallly-ynov.` et non `rallly.ynov.`) : le certificat gratuit de Cloudflare couvre
+  `*.liliansonzogni.fr`, pas `*.ynov.liliansonzogni.fr`.
+- **Rallly joint Authentik par l'URL publique**, comme le navigateur, en passant par Internet et le tunnel. L'issuer OIDC
+  est donc le même des deux côtés. C'est pour ça que `DOMAIN` ne doit pas être un des noms publics : les alias réseau de Caddy
+  enverraient Rallly sur `caddy:443`, qui n'écoute pas.
+- **Exploitation** : instantané quotidien de la VM (gardé 7 jours), sauvegarde chiffrée chaque nuit du `.env` et des bases
+  (`pg_dumpall`), alerte Discord si la VM ou le tunnel tombe.
 
 ## CI/CD
 
@@ -131,7 +170,7 @@ Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) se lance sur 
 Chaque étape bloque la suivante : une image qui ne démarre pas ou qui a une faille critique n'est jamais publiée.
 On bloque seulement sur CRITICAL : les HIGH restants viennent de dépendances indirectes de Rallly (`undici`, `brace-expansion`), qu'on ne peut pas mettre à jour sans risquer de casser l'application. Ils restent visibles dans le rapport.
 
-Le déploiement sur la VM reste manuel (`docker compose pull`), car la VM n'est joignable que par le VPN.
+Le déploiement est **tiré par la VM** (`git pull`, `docker compose pull`) : pas de runner GitHub auto-hébergé, car le dépôt est public (une pull request pourrait exécuter du code sur le serveur), et rien n'entre dans la VM depuis GitHub.
 
 ## Sécurité
 
@@ -144,7 +183,7 @@ Le déploiement sur la VM reste manuel (`docker compose pull`), car la VM n'est 
 - **Scan Trivy** à chaque build. Il bloque la publication s'il trouve une faille CRITICAL corrigeable (voir [CI/CD](#cicd)).
 - **Moins d'appels sortants** : notre image ne contacte pas `api.rallly.co` et la télémétrie de Next.js est désactivée. Côté Authentik, la vérification des mises à jour et l'envoi des rapports d'erreur sont désactivés.
 
-**Limites connues** : HTTP sans TLS (la VM n'est accessible que par le VPN), webmail Mailpit sans mot de passe et non conservé (outil de lab), un seul utilisateur Postgres pour les deux bases.
+**Limites connues** : en local, HTTP sans TLS. Sur la VM, le TLS s'arrête chez Cloudflare : le trajet Cloudflare → serveur passe dans le tunnel chiffré, puis en HTTP sur le pont interne jusqu'à la VM. Mailpit n'a pas de mot de passe propre (sur la VM, il est derrière Cloudflare Access) et ne garde pas les mails (outil de lab). Un seul utilisateur Postgres pour les deux bases.
 
 ## Features Rallly
 
@@ -192,7 +231,7 @@ ou « Tous les créneaux sont passés ». Modification uniquement côté interfa
 | Membre | Rôle |
 |---|---|
 | Hugo Gomes Duarte | Infrastructure (Compose, Authentik, CI), feature #4 |
-| Lilian Sonzogni | Déploiement sur la VM Énov, feature #5 |
+| Lilian Sonzogni | Déploiement sur la VM (Incus, Cloudflare Tunnel et Access), feature #5 |
 | Leyna Belgherbi | Feature libre, schéma d'architecture, slides de la soutenance |
 
 ---
