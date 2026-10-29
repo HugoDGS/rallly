@@ -133,7 +133,7 @@ Le déploiement sur la VM reste manuel (`docker compose pull`), car la VM n'est 
 - **Moindre privilège** : `cap_drop: ALL` et `no-new-privileges` sur tous les services. On rajoute seulement les capacités nécessaires à Postgres et Caddy (`NET_BIND_SERVICE`, demandée par son binaire).
 - **Lecture seule** : Caddy et Mailpit sont en `read_only`, leurs fichiers temporaires vont dans un `tmpfs`. Caddy n'a plus de volume (pas de certificat à garder en HTTP).
 - **Pas de socket Docker** : le worker Authentik ne monte pas `/var/run/docker.sock` (le Compose officiel le fait, on n'en a pas besoin).
-- **Scan Trivy** à chaque build. Pour l'instant le scan n'est pas bloquant : les vulnérabilités restantes viennent des dépendances Node de Rallly.
+- **Scan Trivy** à chaque build. Il bloque la publication s'il trouve une faille CRITICAL corrigeable (voir [CI/CD](#cicd)).
 - **Moins d'appels sortants** : notre image ne contacte pas `api.rallly.co` et la télémétrie de Next.js est désactivée. Côté Authentik, la vérification des mises à jour et l'envoi des rapports d'erreur sont désactivés.
 
 **Limites connues** : HTTP sans TLS (la VM n'est accessible que par le VPN), webmail Mailpit sans mot de passe et non conservé (outil de lab), un seul utilisateur Postgres pour les deux bases.
