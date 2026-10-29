@@ -1,0 +1,33 @@
+# Mode développement : pas de build d'image pour Rallly.
+# Le code du dépôt est monté dans un conteneur Node (bind mount) et Next.js
+# tourne en `next dev` : une modification du code est visible tout de suite.
+#
+#   docker compose -f compose.yaml -f compose.dev.yaml up -d
+#
+# Seul le service rallly change, le reste de la stack est identique.
+
+services:
+  rallly:
+    image: docker.io/library/node:24-slim
+    working_dir: /app
+    # pnpm écrit node_modules et .next dans le dossier monté
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    environment:
+      AUTH_URL: http://${DOMAIN}:${HTTP_PORT}
+      NEXT_PUBLIC_SELF_HOSTED: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      CI: "true" # pnpm sans terminal interactif
+      HUSKY: "0" # pas de hooks Git depuis le conteneur
+      npm_config_store_dir: /pnpm-store
+    volumes:
+      - ..:/app
+      - pnpm-store:/pnpm-store # cache des paquets, garde les relances rapides
+    command: >
+      sh -c "corepack enable
+      && pnpm install --frozen-lockfile
+      && pnpm db:generate
+      && pnpm db:deploy
+      && cd apps/web && exec pnpm exec next dev -H 0.0.0.0 -p 3000"
+
+volumes:
+  pnpm-store:

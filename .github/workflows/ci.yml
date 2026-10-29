@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # main = image de l'infra seule ; feature/* = une image par feature, pour la démo sur la VM
+    branches: [main, "feature/**"]
   pull_request:
   workflow_dispatch:
 
@@ -43,15 +44,40 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: apps/web/Dockerfile
-          build-args: |
-            SELF_HOSTED=true
-            APP_VERSION=${{ github.sha }}
+          file: infra/rallly/Dockerfile
+          build-args: APP_VERSION=${{ github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Test de l'image (Rallly démarre et répond)
+        run: |
+          docker network create test
+          docker run -d --name db --network test \
+            -e POSTGRES_USER=app -e POSTGRES_PASSWORD=test -e POSTGRES_DB=rallly \
+            postgres:16-alpine
+          # Rallly lance les migrations au démarrage : Postgres doit être prêt avant
+          until docker exec db pg_isready -h localhost -U app -d rallly; do sleep 1; done
+          docker run -d --name rallly --network test -p 3000:3000 \
+            -e DATABASE_URL=postgres://app:test@db:5432/rallly \
+            -e SECRET_PASSWORD=ci-secret-ci-secret-ci-secret-ci \
+            -e NEXT_PUBLIC_BASE_URL=http://localhost:3000 \
+            -e SUPPORT_EMAIL=support@example.com \
+            ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
+          # migrations + démarrage : on attend au maximum 2 minutes
+          for i in $(seq 1 24); do
+            if curl -fs http://localhost:3000/api/status; then
+              echo
+              echo "Rallly répond"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Rallly ne répond pas, logs du conteneur :"
+          docker logs rallly
+          exit 1
 
       - name: Scan Trivy (rapport)
         uses: aquasecurity/trivy-action@v0.36.0
@@ -71,8 +97,19 @@ jobs:
           cat trivy.txt >> "$GITHUB_STEP_SUMMARY" || true
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
+      # le job échoue s'il reste une faille CRITICAL corrigeable : l'image n'est pas publiée
+      - name: Scan Trivy (bloquant sur CRITICAL)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
+          severity: CRITICAL
+          ignore-unfixed: true
+          format: table
+          exit-code: "1"
+          skip-setup-trivy: true
+
       - name: Login GHCR
-        if: github.ref == 'refs/heads/main'
+        if: github.event_name == 'push'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -80,6 +117,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push
-        if: github.ref == 'refs/heads/main'
+        if: github.event_name == 'push'
         run: |
           for tag in $(echo "${{ steps.meta.outputs.tags }}"); do docker push "$tag"; done

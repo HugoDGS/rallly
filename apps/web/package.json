@@ -83,7 +83,7 @@
     "micro": "^10.0.1",
     "motion": "^12.6.2",
     "nanoid": "^5.0.9",
-    "next": "16.3.8",
+    "next": "16.4.1",
     "next-safe-action": "^8.6.0",
     "pg": "^8.17.1",
     "php-serialize": "^4.1.1",

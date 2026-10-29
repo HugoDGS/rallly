@@ -14,7 +14,6 @@ export type PollDetails = {
   createdAt: Date;
   status: PollStatus;
   closedReason: PollClosedReason | null;
-  deadline: Date | null;
   hideParticipants: boolean;
   disableComments: boolean;
   allowTentativeVotes: boolean;

@@ -8,7 +8,6 @@ import {
   DropdownMenuTrigger,
 } from "@rallly/ui/dropdown-menu";
 import {
-  CalendarClockIcon,
   ChevronDownIcon,
   CircleStopIcon,
   CopyIcon,
@@ -26,7 +25,6 @@ import { usePoll } from "@/features/poll/client";
 import { DuplicateDialog } from "@/features/poll/components/duplicate-dialog";
 import { Trans } from "@/i18n/client";
 import { trpc } from "@/trpc/client";
-import { DeadlineDialog } from "./manage-poll/deadline-dialog";
 import { DeletePollDialog } from "./manage-poll/delete-poll-dialog";
 import { useCsvExporter } from "./manage-poll/use-csv-exporter";
 
@@ -73,7 +71,6 @@ const ManagePoll: React.FunctionComponent<{
   const poll = usePoll();
 
   const [showDeletePollDialog, setShowDeletePollDialog] = React.useState(false);
-  const [showDeadlineDialog, setShowDeadlineDialog] = React.useState(false);
   const duplicateDialog = useDialog();
   const isFree = useIsFree();
   const { exportToCsv } = useCsvExporter();
@@ -108,10 +105,6 @@ const ManagePoll: React.FunctionComponent<{
           {canChangeStatus ? (
             <>
               <OpenCloseToggle />
-              <DropdownMenuItem onClick={() => setShowDeadlineDialog(true)}>
-                <CalendarClockIcon />
-                <Trans i18nKey="pollDeadline" defaults="Voting deadline" />
-              </DropdownMenuItem>
               <DropdownMenuSeparator />
             </>
           ) : null}
@@ -148,12 +141,6 @@ const ManagePoll: React.FunctionComponent<{
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <DeadlineDialog
-        pollId={poll.id}
-        deadline={poll.deadline}
-        open={showDeadlineDialog}
-        onOpenChange={setShowDeadlineDialog}
-      />
       <DeletePollDialog
         urlId={poll.id}
         open={showDeletePollDialog}

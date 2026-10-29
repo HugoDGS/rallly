@@ -9,7 +9,7 @@ import {
   findPendingPollInvite,
 } from "@/features/poll/invite/mutations";
 import { revalidatePollPages } from "@/features/poll/mutations";
-import { generateAccessToken, isPastDeadline } from "@/features/poll/utils";
+import { generateAccessToken } from "@/features/poll/utils";
 import type { SpaceTier } from "@/features/space/schema";
 import { scheduleWebhookDispatch } from "@/features/webhook/mutations";
 
@@ -36,14 +36,9 @@ async function lockOpenPoll(
   votes: { type: VoteType }[],
 ) {
   const [poll] = await tx.$queryRaw<
-    {
-      status: string;
-      deleted: boolean;
-      allow_tentative_votes: boolean;
-      deadline: Date | null;
-    }[]
+    { status: string; deleted: boolean; allow_tentative_votes: boolean }[]
   >`
-    SELECT status, deleted, allow_tentative_votes, deadline
+    SELECT status, deleted, allow_tentative_votes
     FROM polls WHERE id = ${pollId} FOR UPDATE
   `;
 
@@ -54,7 +49,7 @@ async function lockOpenPoll(
   // The voting window is the organizer's control, so it has to hold here
   // and not only in the client, which hides the form via
   // `canAddNewParticipant` and `canEditParticipant`.
-  if (poll.status !== "open" || isPastDeadline(poll.deadline)) {
+  if (poll.status !== "open") {
     throw new WriteRefusedError("closed");
   }
 
