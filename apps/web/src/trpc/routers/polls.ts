@@ -35,7 +35,6 @@ import {
   getPolls,
   hasPollAdminAccess,
 } from "@/features/poll/data";
-import { revalidatePollPages } from "@/features/poll/mutations";
 import { MAX_POLL_DESCRIPTION_LENGTH } from "@/features/poll/schema";
 import {
   getFinalizePlanGate,
@@ -1562,29 +1561,6 @@ export const polls = router({
           poll: input.pollId,
         },
       });
-    }),
-  setDeadline: privateProcedure
-    .input(
-      z.object({
-        pollId: z.string(),
-        // null removes the deadline.
-        deadline: z.date().nullable(),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      if (!(await hasPollAdminAccess(input.pollId, ctx.user.id))) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "You are not allowed to change this poll's deadline",
-        });
-      }
-
-      await prisma.poll.update({
-        where: { id: input.pollId },
-        data: { deadline: input.deadline },
-      });
-
-      revalidatePollPages();
     }),
   close: possiblyPublicProcedure
     .input(

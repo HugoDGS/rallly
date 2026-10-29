@@ -7,7 +7,6 @@ import {
   getPollDetails,
   listParticipantIdsByToken,
 } from "@/features/poll/data";
-import { isPastDeadline } from "@/features/poll/utils";
 import {
   countParticipants,
   getOptionScores,
@@ -72,7 +71,6 @@ export const loadVotePage = cache(
         conferencing: poll.conferencing,
         status: poll.status,
         closedReason: poll.closedReason,
-        deadline: poll.deadline,
         allowTentativeVotes: poll.allowTentativeVotes,
         timeZone: poll.timeZone,
         userId: poll.userId,
@@ -108,7 +106,7 @@ export const loadVotePage = cache(
             : null,
       })),
       response,
-      canVote: poll.status === "open" && !isPastDeadline(poll.deadline),
+      canVote: poll.status === "open",
     };
   },
 );

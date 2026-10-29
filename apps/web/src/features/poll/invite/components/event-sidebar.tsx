@@ -1,5 +1,4 @@
 import { MapPinIcon, User2Icon } from "lucide-react";
-import type { ReactNode } from "react";
 import { Trans } from "react-i18next/TransWithoutContext";
 import { PollConferencingSummary } from "@/features/conferencing/components/poll-conferencing-summary";
 import type { PollConferencing } from "@/features/conferencing/schema";
@@ -9,7 +8,6 @@ import {
   EventMetaList,
   EventMetaTitle,
 } from "@/features/poll/components/event-meta";
-import { PollDeadlineNotice } from "@/features/poll/components/poll-deadline-notice";
 import TruncatedLinkify from "@/features/poll/components/truncated-linkify";
 import { PoweredByLink } from "@/features/poll/vote/components/powered-by-link";
 import { SpaceIcon } from "@/features/space/components/space-icon";
@@ -23,7 +21,6 @@ type SidebarPoll = {
   location: string | null;
   conferencing: PollConferencing | null;
   event: { conferencingUri: string | null } | null;
-  deadline: Date | null;
   allowTentativeVotes: boolean;
   spaceId: string | null;
   user: { name: string } | null;
@@ -41,14 +38,11 @@ export async function EventSidebar({
   spaceBrandingAllowed,
   instanceBranding,
   hideAttribution,
-  status,
 }: {
   poll: SidebarPoll;
   spaceBrandingAllowed: boolean;
   instanceBranding: { appName: string; logoIcon?: string };
   hideAttribution: boolean;
-  /** Shown under the title, e.g. how soon the next option starts. */
-  status?: ReactNode;
 }) {
   const { t, i18n } = await getTranslation();
 
@@ -82,7 +76,6 @@ export async function EventSidebar({
           </div>
         ) : null}
         <EventMetaTitle>{poll.title}</EventMetaTitle>
-        {status ? <div className="mt-2">{status}</div> : null}
         <EventMetaDescription className="mt-4" content={poll.description} />
         <EventMetaList className="mt-4">
           {poll.user ? (
@@ -113,9 +106,6 @@ export async function EventSidebar({
             </EventMetaItem>
           ) : null}
         </EventMetaList>
-        <div className="mt-4">
-          <PollDeadlineNotice deadline={poll.deadline} />
-        </div>
         <div className="mt-4">
           <VoteLegend allowTentativeVotes={poll.allowTentativeVotes} />
         </div>

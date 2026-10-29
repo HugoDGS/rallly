@@ -140,11 +140,14 @@ Le déploiement sur la VM reste manuel (`docker compose pull`), car la VM n'est 
 
 ## Features Rallly
 
+Chaque feature vit dans sa propre branche, qui ne contient que cette feature (en plus de l'infra). `main` ne contient que l'infrastructure.
+Pour tester une feature : `git switch <branche>` puis `docker compose up -d --build` dans `infra/`.
+
 | Feature | Responsable | Branche | Statut |
 |---|---|---|---|
 | #4 — Expiration automatique du sondage | Hugo | `feature/poll-deadline` | terminée |
 | #5 — Bloquer le vote sur les dates passées | Lilian | `feature/block-past-dates` | à faire |
-| Libre — Taux de participation | Leyna | `feature/participation` | à faire |
+| Libre — Taux de participation | Leyna | `feature/Taux-de-participation` | à faire |
 | Bonus — Badge « prochain créneau » | Hugo | `feature/deadline-badge` | terminée |
 
 > Au départ on avait choisi la #9 (désactiver les commentaires), mais elle existe déjà dans Rallly. On l'a remplacée par la #4.
@@ -173,6 +176,7 @@ ou « Tous les créneaux sont passés ». Modification uniquement côté interfa
 
 - `main` est protégée : on passe obligatoirement par une pull request, et la CI doit être verte pour merger.
 - Une branche par sujet : `feature/…` pour les features, `infra/…` pour l'infrastructure.
+- Les branches `feature/…` partent de `main` sans aucune feature et ne sont pas mergées dans `main` : on les garde telles quelles, une par feature.
 
 ## Équipe
 
