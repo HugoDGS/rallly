@@ -158,6 +158,7 @@ Pour tester une feature en mode dev : `git switch <branche>`, le conteneur `rall
 | #5 — Bloquer le vote sur les dates passées | Lilian | `feature/block-past-dates` | à faire |
 | Libre — Taux de participation | Leyna | `feature/Taux-de-participation` | à faire |
 | Bonus — Badge « prochain créneau » | Hugo | `feature/deadline-badge` | terminée |
+| #12 — Analyse des résultats | Leyna | `feature/analyse-resultats` | terminée |
 
 > Au départ on avait choisi la #9 (désactiver les commentaires), mais elle existe déjà dans Rallly. On l'a remplacée par la #4.
 > Le badge « prochain créneau » était notre première feature libre, quand on était 2. Depuis l'arrivée de Leyna, la feature libre est le taux de participation et le badge reste en bonus.
@@ -174,6 +175,24 @@ On réutilise la colonne `deadline` qui existait déjà dans la base, donc il n'
 
 *Problème* : l'organisateur ne voit pas facilement combien de personnes ont déjà répondu avant de choisir un créneau.
 *Solution* : sous le titre du sondage, on affiche le nombre de participants qui ont voté.
+
+### #12 — Analyse des résultats
+
+Issue d'origine : [lukevella/rallly#320](https://github.com/lukevella/rallly/issues/320).
+*Problème* : quand un sondage a beaucoup de créneaux, il faut parcourir toute la grille de votes pour trouver le meilleur.
+*Solution* : sur la page admin du sondage, sous la grille, une carte « Analyse des résultats » :
+
+- un encadré avec le meilleur créneau (« mar. 1 déc. 2026 convient à 4 participants sur 5 ») ;
+- le classement des créneaux (n°1, n°2…). Les ex æquo ont le même rang et les premiers ont un badge « Meilleur choix » ;
+- pour chaque créneau, le nombre de disponibles et une barre empilée oui / si besoin / non / sans réponse, avec une légende ;
+- les 5 premiers créneaux, avec un bouton pour afficher tous les autres.
+
+Le classement suit la même règle que le reste de Rallly : nombre de disponibles (oui + si besoin), puis nombre de oui, puis le créneau le plus tôt.
+Cette règle est dans [`results/utils.ts`](apps/web/src/features/poll/results/utils.ts), avec des tests unitaires (dans `apps/web` : `pnpm exec vitest run src/features/poll/results`).
+La carte est sur la page admin classique (`/poll/…`), pas sur le nouveau tableau de bord `/polls/…` de Rallly, qui n'est activé qu'en développement.
+Modification uniquement côté interface, pas de migration.
+
+*Démo* : créer un sondage avec 5 ou 6 créneaux, faire voter `alice` et `bob` avec des réponses différentes, puis ouvrir la page admin.
 
 ### Bonus — badge « prochain créneau »
 
