@@ -17,14 +17,19 @@ services:
     ports:
       - "${HTTP_PORT}:${HTTP_PORT}" # seul port publié de la stack
     environment:
-      DOMAIN: ${DOMAIN}
+      # Noms servis : par défaut DOMAIN, auth.DOMAIN et mail.DOMAIN (voir .env.example)
+      RALLLY_HOST: ${RALLLY_HOST:-${DOMAIN}}
+      AUTH_HOST: ${AUTH_HOST:-auth.${DOMAIN}}
+      MAIL_HOST: ${MAIL_HOST:-mail.${DOMAIN}}
       HTTP_PORT: ${HTTP_PORT}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1/32}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
     networks:
       front:
         # Rallly doit joindre Authentik avec la même URL que le navigateur,
-        # sinon l'issuer OIDC ne correspond pas.
+        # sinon l'issuer OIDC ne correspond pas. Avec des URL publiques en https
+        # (VM), Rallly passe par l'URL publique : ces alias ne servent qu'en local.
         aliases: ["${DOMAIN}", "auth.${DOMAIN}"]
 
   postgres:
@@ -94,7 +99,7 @@ services:
       AUTHENTIK_BOOTSTRAP_EMAIL: admin@${DOMAIN}
       # Variables lues par le blueprint (!Env)
       DOMAIN: ${DOMAIN}
-      HTTP_PORT: ${HTTP_PORT}
+      RALLLY_PUBLIC_URL: ${RALLLY_PUBLIC_URL:-http://${RALLLY_HOST:-${DOMAIN}}:${HTTP_PORT}}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
       DEMO_PASSWORD: ${DEMO_PASSWORD}
@@ -115,7 +120,7 @@ services:
     environment:
       DATABASE_URL: postgres://app:${PG_PASS}@postgres:5432/rallly
       SECRET_PASSWORD: ${RALLLY_SECRET}
-      NEXT_PUBLIC_BASE_URL: http://${DOMAIN}:${HTTP_PORT}
+      NEXT_PUBLIC_BASE_URL: ${RALLLY_PUBLIC_URL:-http://${RALLLY_HOST:-${DOMAIN}}:${HTTP_PORT}}
       SUPPORT_EMAIL: support@${DOMAIN}
       NOREPLY_EMAIL: noreply@${DOMAIN}
       SMTP_HOST: mailpit
@@ -123,7 +128,7 @@ services:
       SMTP_SECURE: "false"
       EMAIL_LOGIN_ENABLED: "false" # connexion uniquement via Authentik
       OIDC_NAME: Authentik
-      OIDC_DISCOVERY_URL: http://auth.${DOMAIN}:${HTTP_PORT}/application/o/rallly/.well-known/openid-configuration
+      OIDC_DISCOVERY_URL: ${AUTH_PUBLIC_URL:-http://${AUTH_HOST:-auth.${DOMAIN}}:${HTTP_PORT}}/application/o/rallly/.well-known/openid-configuration
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
     depends_on:
