@@ -1,16 +1,21 @@
 {
 	admin off
 	auto_https off
+	servers {
+		# Derrière un autre proxy qui termine le HTTPS (VM : Cloudflare Tunnel), garder
+		# son X-Forwarded-Proto, sinon Authentik construit ses URL en http.
+		trusted_proxies static {$TRUSTED_PROXIES}
+	}
 }
 
-http://{$DOMAIN}:{$HTTP_PORT} {
+http://{$RALLLY_HOST}:{$HTTP_PORT} {
 	reverse_proxy rallly:3000
 }
 
-http://auth.{$DOMAIN}:{$HTTP_PORT} {
+http://{$AUTH_HOST}:{$HTTP_PORT} {
 	reverse_proxy authentik-server:9000
 }
 
-http://mail.{$DOMAIN}:{$HTTP_PORT} {
+http://{$MAIL_HOST}:{$HTTP_PORT} {
 	reverse_proxy mailpit:8025
 }

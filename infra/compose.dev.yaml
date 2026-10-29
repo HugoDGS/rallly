@@ -13,7 +13,7 @@ services:
     # pnpm écrit node_modules et .next dans le dossier monté
     cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
     environment:
-      AUTH_URL: http://${DOMAIN}:${HTTP_PORT}
+      AUTH_URL: ${RALLLY_PUBLIC_URL:-http://${RALLLY_HOST:-${DOMAIN}}:${HTTP_PORT}}
       NEXT_PUBLIC_SELF_HOSTED: "true"
       NEXT_TELEMETRY_DISABLED: "1"
       CI: "true" # pnpm sans terminal interactif
