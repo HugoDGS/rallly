@@ -6,17 +6,20 @@ import { RandomGradientBar } from "@/components/random-gradient-bar";
 import { useBranding } from "@/features/branding/client";
 import { PollConferencingSummary } from "@/features/conferencing/components/poll-conferencing-summary";
 import { useInstancePolicy } from "@/features/instance-policy/client";
-import { usePoll } from "@/features/poll/client";
+import { useParticipants, usePoll, useRole } from "@/features/poll/client";
 import {
   EventMetaDescription,
   EventMetaItem,
   EventMetaList,
   EventMetaTitle,
 } from "@/features/poll/components/event-meta";
+import { ParticipationRate } from "@/features/poll/components/participation-rate";
 import TruncatedLinkify from "@/features/poll/components/truncated-linkify";
 import VoteIcon from "@/features/poll/components/vote-icon";
 import { SpaceIcon } from "@/features/space/components/space-icon";
+import { useUser } from "@/features/user/client";
 import { Trans } from "@/i18n/client";
+import { trpc } from "@/trpc/client";
 
 function IconDescriptionList({
   className,
@@ -45,6 +48,30 @@ function IconDescription({
       <dt>{icon}</dt>
       <dd>{label}</dd>
     </div>
+  );
+}
+
+/**
+ * Responses so far, against the invites when the viewer is a signed-in host
+ * (invites are not exposed to participants or guest hosts).
+ */
+function PollParticipationRate() {
+  const poll = usePoll();
+  const { participants } = useParticipants();
+  const role = useRole();
+  const { user } = useUser();
+  const canListInvites = role === "admin" && !!user && !user.isGuest;
+  // Same query as the invite dialog, so the count updates when it sends one.
+  const invitesQuery = trpc.polls.invites.list.useQuery(
+    { pollId: poll.id },
+    { enabled: canListInvites },
+  );
+
+  return (
+    <ParticipationRate
+      voterCount={participants.length}
+      inviteCount={canListInvites ? invitesQuery.data?.length : null}
+    />
   );
 }
 
@@ -81,6 +108,9 @@ export function EventDetails() {
         </div>
       ) : null}
       <EventMetaTitle>{poll.title}</EventMetaTitle>
+      <div className="mt-2">
+        <PollParticipationRate />
+      </div>
       <EventMetaDescription className="mt-4" content={poll.description} />
       <EventMetaList className="mt-4">
         {poll.user ? (
