@@ -6,7 +6,6 @@ import type {
   PollDetails,
   PollParticipant,
 } from "@/features/poll/types";
-import { isPastDeadline } from "@/features/poll/utils";
 import { useUser } from "@/features/user/client";
 import { useTranslation } from "@/i18n/client";
 
@@ -89,12 +88,10 @@ export const usePermissions = () => {
     useRequiredContext(PollContext);
   const { user } = useUser();
 
-  const acceptsVotes = poll.status === "open" && !isPastDeadline(poll.deadline);
-
   return {
-    canAddNewParticipant: acceptsVotes,
+    canAddNewParticipant: poll.status === "open",
     canEditParticipant: (participantId: string) => {
-      if (!acceptsVotes) {
+      if (poll.status !== "open") {
         return false;
       }
 
