@@ -115,8 +115,13 @@ Si le DNS du poste client bloque les réponses en IP privée, ajouter les trois 
 Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) se lance sur chaque pull request et sur `main` :
 
 1. **Valider le Compose** : `docker compose config` avec un `.env` de test.
-2. **Build + scan de l'image Rallly** : build avec `infra/rallly/Dockerfile`, puis scan Trivy (vulnérabilités HIGH et CRITICAL). Le rapport est affiché dans le résumé du run.
-3. **Publication** : seulement sur `main`, l'image est poussée sur GHCR avec deux tags, `:main` et `:sha-<commit>`.
+2. **Build** de l'image avec `infra/rallly/Dockerfile`.
+3. **Test** : on lance l'image avec une base Postgres de test et on vérifie que `/api/status` répond (donc que les migrations passent et que le serveur démarre).
+4. **Scan Trivy** : un rapport HIGH + CRITICAL est affiché dans le résumé du run, puis un second scan **fait échouer le job** s'il reste une faille CRITICAL corrigeable.
+5. **Publication** : seulement sur `main` et si toutes les étapes d'avant sont vertes, l'image est poussée sur GHCR avec deux tags, `:main` et `:sha-<commit>`.
+
+Chaque étape bloque la suivante : une image qui ne démarre pas ou qui a une faille critique n'est jamais publiée.
+On bloque seulement sur CRITICAL : les HIGH restants viennent de dépendances indirectes de Rallly (`undici`, `brace-expansion`), qu'on ne peut pas mettre à jour sans risquer de casser l'application. Ils restent visibles dans le rapport.
 
 Le déploiement sur la VM reste manuel (`docker compose pull`), car la VM n'est joignable que par le VPN.
 
