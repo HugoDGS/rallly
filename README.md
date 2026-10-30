@@ -126,8 +126,8 @@ docker compose up -d
 ```
 
 - Mettre à jour : `git pull && docker compose pull && docker compose up -d`.
-- Démo d'une feature : mettre l'image de sa branche dans le `.env`, par exemple
-  `RALLLY_IMAGE=ghcr.io/hugodgs/rallly:feature-block-past-dates`, puis `docker compose pull && docker compose up -d`.
+- Démo : mettre l'image de la branche d'intégration dans le `.env`, `RALLLY_IMAGE=ghcr.io/hugodgs/rallly:integration-demo`,
+  puis `docker compose pull && docker compose up -d`. Pour une seule feature, utiliser l'image de sa branche (par exemple `:feature-poll-deadline`).
   La VM ne construit jamais rien.
 - Avant chaque gros déploiement, Lilian prend un instantané de la VM, pour pouvoir revenir en arrière.
 
@@ -164,8 +164,8 @@ Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) se lance sur 
 3. **Test** : on lance l'image avec une base Postgres de test et on vérifie que `/api/status` répond (donc que les migrations passent et que le serveur démarre).
 4. **Scan Trivy** : un rapport HIGH + CRITICAL est affiché dans le résumé du run, puis un second scan **fait échouer le job** s'il reste une faille CRITICAL corrigeable.
 5. **Publication** : sur un push (pas sur une pull request) et si toutes les étapes d'avant sont vertes, l'image est poussée sur GHCR
-   avec deux tags : le nom de la branche (`:main`, `:feature-poll-deadline`…, les `/` deviennent des `-`) et `:sha-<commit>`.
-   Comme `main` ne contient pas les features, chaque branche de feature a sa propre image pour la démo sur la VM.
+   avec deux tags : le nom de la branche (`:main`, `:feature-poll-deadline`, `:integration-demo`…, les `/` deviennent des `-`) et `:sha-<commit>`.
+   Comme `main` ne contient pas les features, chaque branche de feature a sa propre image, et `integration/demo` les regroupe pour la démo sur la VM.
 
 Chaque étape bloque la suivante : une image qui ne démarre pas ou qui a une faille critique n'est jamais publiée.
 On bloque seulement sur CRITICAL : les HIGH restants viennent de dépendances indirectes de Rallly (`undici`, `brace-expansion`), qu'on ne peut pas mettre à jour sans risquer de casser l'application. Ils restent visibles dans le rapport.
@@ -188,14 +188,16 @@ Le déploiement est **tiré par la VM** (`git pull`, `docker compose pull`) : pa
 ## Features Rallly
 
 Chaque feature vit dans sa propre branche, qui ne contient que cette feature (en plus de l'infra). `main` ne contient que l'infrastructure.
+La branche `integration/demo` regroupe toutes les features pour la démo.
 Pour tester une feature en mode dev : `git switch <branche>`, le conteneur `rallly` recharge le code tout seul
 (relancer `docker compose -f compose.yaml -f compose.dev.yaml restart rallly` si les dépendances ou le schéma Prisma changent).
 
 | Feature | Responsable | Branche | Statut |
 |---|---|---|---|
 | #4 — Expiration automatique du sondage | Hugo | `feature/poll-deadline` | terminée |
-| #5 — Bloquer le vote sur les dates passées | Lilian | `feature/block-past-dates` | à faire |
-| Libre — Taux de participation | Leyna | `feature/Taux-de-participation` | à faire |
+| #5 — Bloquer le vote sur les dates passées | Lilian | `feature/block-past-dates-vm` | terminée |
+| Libre — Taux de participation | Leyna | `feature/Taux-de-participation` | terminée |
+| #12 — Analyse des résultats | Leyna | `feature/analyse-resultats` | terminée |
 
 > Au départ on avait choisi la #9 (désactiver les commentaires), mais elle existe déjà dans Rallly. On l'a remplacée par la #4.
 
@@ -207,15 +209,51 @@ On réutilise la colonne `deadline` qui existait déjà dans la base, donc il n'
 
 *Démo* : mettre une date limite dans 1 minute, voter (ça marche), attendre, revoter (c'est refusé).
 
+### #5 — Bloquer le vote sur les dates passées
+
+Les créneaux terminés sont grisés sur la page d'invitation et gardent le vote qu'ils avaient déjà. Quand tous les créneaux sont passés, le sondage n'accepte plus de réponse et une annonce explique pourquoi.
+Le serveur applique la même règle : il refuse de modifier un vote sur un créneau passé, et toute nouvelle réponse quand plus aucun créneau n'est ouvert.
+Un répondant peut aussi répondre « non » à la main sur tous les créneaux encore ouverts, puis continuer vers la fenêtre de refus (branche `feature/explicit-no-response`, intégrée à `integration/demo`).
+La branche `feature/block-past-dates` sert à la pull request proposée au projet Rallly, et `feature/block-past-dates-vm` à la démo.
+
+*Démo* : ouvrir un sondage qui a un créneau passé et un créneau à venir : le créneau passé est grisé et on ne peut voter que sur l'autre.
+
 ### Feature libre — taux de participation
 
 *Problème* : l'organisateur ne voit pas facilement combien de personnes ont déjà répondu avant de choisir un créneau.
 *Solution* : sous le titre du sondage, on affiche le nombre de participants qui ont voté.
 
+- **Organisateur connecté** (page admin) : « 5 votants sur 8 invités » avec une barre de progression. Les invités sont les invitations
+  envoyées par e-mail (*Partager → Inviter par e-mail*) et non révoquées. Sans invitation, seul le nombre de votants s'affiche.
+- **Participants** : seulement le nombre de votants (« 3 votants »). La liste des invitations reste réservée à l'organisateur.
+  Si le sondage cache les résultats tant qu'on n'a pas voté, le compteur est caché aussi.
+- Quelqu'un peut voter par le lien public sans avoir été invité : il peut donc y avoir plus de votants que d'invités, la barre reste alors pleine.
+- Modification uniquement côté interface, pas de migration. Composant : [`participation-rate.tsx`](apps/web/src/features/poll/components/participation-rate.tsx).
+
+*Démo* : créer un sondage, inviter 3 adresses par e-mail, faire voter `alice` et `bob` → « 2 votants sur 3 invités ».
+
+### #12 — Analyse des résultats
+
+Issue d'origine : [lukevella/rallly#320](https://github.com/lukevella/rallly/issues/320).
+*Problème* : quand un sondage a beaucoup de créneaux, il faut parcourir toute la grille de votes pour trouver le meilleur.
+*Solution* : sur la page admin du sondage, sous la grille, une carte « Analyse des résultats » :
+
+- un encadré avec le meilleur créneau (« mar. 1 déc. 2026 convient à 4 participants sur 5 ») ;
+- le classement des créneaux (n°1, n°2…). Les ex æquo ont le même rang et les premiers ont un badge « Meilleur choix » ;
+- pour chaque créneau, le nombre de disponibles et une barre empilée oui / si besoin / non / sans réponse, avec une légende ;
+- les 5 premiers créneaux, avec un bouton pour afficher tous les autres.
+
+Le classement suit la même règle que le reste de Rallly : nombre de disponibles (oui + si besoin), puis nombre de oui, puis le créneau le plus tôt.
+Cette règle est dans [`results/utils.ts`](apps/web/src/features/poll/results/utils.ts), avec des tests unitaires (dans `apps/web` : `pnpm exec vitest run src/features/poll/results`).
+La carte est sur la page admin classique (`/poll/…`), pas sur le nouveau tableau de bord `/polls/…` de Rallly, qui n'est activé qu'en développement.
+Modification uniquement côté interface, pas de migration.
+
+*Démo* : créer un sondage avec 5 ou 6 créneaux, faire voter `alice` et `bob` avec des réponses différentes, puis ouvrir la page admin.
+
 ## Organisation Git
 
-- `main` est protégée : on passe obligatoirement par une pull request, et la CI doit être verte pour merger.
-- Une branche par sujet : `feature/…` pour les features, `infra/…` pour l'infrastructure.
+- `main` est protégée : on passe par une pull request et la CI doit être verte pour merger. Un administrateur du dépôt peut passer outre : ça a été le cas pour la PR #14 (documentation uniquement).
+- Une branche par sujet : `feature/…` pour les features, `infra/…` pour l'infrastructure, `integration/demo` pour regrouper les features.
 - Les branches `feature/…` partent de `main` sans aucune feature et ne sont pas mergées dans `main` : on les garde telles quelles, une par feature.
 
 ## Équipe
@@ -224,7 +262,7 @@ On réutilise la colonne `deadline` qui existait déjà dans la base, donc il n'
 |---|---|
 | Hugo Gomes Duarte | Infrastructure (Compose, Authentik, CI), feature #4 |
 | Lilian Sonzogni | Déploiement sur la VM (Incus, Cloudflare Tunnel et Access), feature #5 |
-| Leyna Belgherbi | Feature libre, schéma d'architecture, slides de la soutenance |
+| Leyna Belgherbi | Taux de participation, analyse des résultats (#12), schéma d'architecture, slides de la soutenance |
 
 ---
 
