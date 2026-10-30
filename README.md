@@ -212,7 +212,6 @@ On réutilise la colonne `deadline` qui existait déjà dans la base, donc il n'
 *Problème* : l'organisateur ne voit pas facilement combien de personnes ont déjà répondu avant de choisir un créneau.
 *Solution* : sous le titre du sondage, on affiche le nombre de participants qui ont voté.
 
-
 ## Organisation Git
 
 - `main` est protégée : on passe obligatoirement par une pull request, et la CI doit être verte pour merger.
