@@ -6,6 +6,7 @@ import { useAllOptionsPast, usePoll } from "@/features/poll/client";
 import DesktopPoll from "@/features/poll/components/desktop-poll";
 import MobilePoll from "@/features/poll/components/mobile-poll";
 import { AllOptionsPastNotice } from "@/features/poll/components/past-option-vote";
+import { PollDeadlineNotice } from "@/features/poll/components/poll-deadline-notice";
 import { PollOutcome } from "@/features/poll/components/poll-outcome";
 
 const useBreakpoint = createBreakpoint({ list: 320, table: 640 });
@@ -18,6 +19,9 @@ export function ResponsiveResults() {
 
   return (
     <>
+      {poll.status === "open" ? (
+        <PollDeadlineNotice deadline={poll.deadline} />
+      ) : null}
       {poll.status === "open" && allOptionsPast ? (
         <AllOptionsPastNotice />
       ) : null}

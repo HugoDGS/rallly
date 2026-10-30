@@ -868,5 +868,10 @@
   "yourName": "Votre nom…",
   "pastOptionVoteRefused": "Un des créneaux est déjà passé. Rechargez la page pour voir ceux auxquels vous pouvez encore répondre.",
   "pastOptionVoteTooltip": "Ce créneau est passé",
-  "allOptionsPastNotice": "Tous les créneaux sont passés : les réponses ne sont plus acceptées."
+  "allOptionsPastNotice": "Tous les créneaux sont passés : les réponses ne sont plus acceptées.",
+  "pollDeadline": "Date limite de vote",
+  "pollDeadlineDescription": "Une fois cette date passée, les participants ne peuvent plus ajouter ni modifier leurs votes.",
+  "pollDeadlineRemove": "Supprimer la date limite",
+  "pollDeadlinePassed": "Votes clos depuis le {date}",
+  "pollDeadlineUpcoming": "Clôture des votes le {date}"
 }
