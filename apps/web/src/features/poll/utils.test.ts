@@ -3,6 +3,7 @@ import {
   filterCommentsForViewer,
   filterParticipantsByVote,
   getFinalizePlanGate,
+  hasDeclinedEveryOpenOption,
   isOptionPast,
   isOptionPastEverywhere,
   maskParticipantsForViewer,
@@ -522,5 +523,45 @@ describe("isOptionPastEverywhere", () => {
         }
       }
     }
+  });
+});
+
+describe("hasDeclinedEveryOpenOption", () => {
+  const no = (optionId: string) => ({ optionId, type: "no" as const });
+
+  it("is true once every option is answered no", () => {
+    expect(hasDeclinedEveryOpenOption([no("a"), no("b")], new Set())).toBe(
+      true,
+    );
+  });
+
+  it("is false while an option is untouched", () => {
+    expect(
+      hasDeclinedEveryOpenOption([no("a"), { optionId: "b" }], new Set()),
+    ).toBe(false);
+  });
+
+  it("is false when an option is answered yes", () => {
+    expect(
+      hasDeclinedEveryOpenOption(
+        [no("a"), { optionId: "b", type: "yes" }],
+        new Set(),
+      ),
+    ).toBe(false);
+  });
+
+  it("ignores options that are over", () => {
+    expect(
+      hasDeclinedEveryOpenOption(
+        [{ optionId: "past" }, no("open")],
+        new Set(["past"]),
+      ),
+    ).toBe(true);
+  });
+
+  it("is false when no option is open", () => {
+    expect(
+      hasDeclinedEveryOpenOption([{ optionId: "past" }], new Set(["past"])),
+    ).toBe(false);
   });
 });
