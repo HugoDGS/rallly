@@ -15,6 +15,7 @@ import type * as React from "react";
 
 import { usePastOptionIds } from "@/features/poll/client";
 import { useVotingForm } from "@/features/poll/components/voting-form";
+import { hasDeclinedEveryOpenOption } from "@/features/poll/utils";
 import { Trans, useTranslation } from "@/i18n/client";
 
 function useSelection() {
@@ -133,8 +134,9 @@ export function DeclineButton({
 
 /**
  * Continue (new response) or Save (existing one). A new response is gated
- * until at least one option is selected; the gate explains itself in a toast
- * rather than disabling the button, so it stays reachable.
+ * until at least one option is selected or every open option is answered no;
+ * the gate explains itself in a toast rather than disabling the button, so it
+ * stays reachable.
  */
 export function SubmitResponseButton({
   className,
@@ -144,8 +146,12 @@ export function SubmitResponseButton({
   size?: React.ComponentProps<typeof Button>["size"];
 }) {
   const { t } = useTranslation();
-  const { votingForm, selectedCount, isNewResponse } = useSelection();
-  const isBlocked = isNewResponse && selectedCount === 0;
+  const { votingForm, votes, selectedCount, isNewResponse } = useSelection();
+  const pastOptionIds = usePastOptionIds();
+  const isBlocked =
+    isNewResponse &&
+    selectedCount === 0 &&
+    !hasDeclinedEveryOpenOption(votes, pastOptionIds);
 
   return (
     <Button

@@ -341,3 +341,19 @@ export function isOptionPastEverywhere(
     option.startTime.getTime() + 24 * HOUR + LATEST_OFFSET <= now.getTime()
   );
 }
+
+/**
+ * Whether a response says no to every option still open, each one picked by
+ * hand. An option left untouched has no type yet, so pressing Continue on an
+ * untouched form still stops: that used to record an unintended no to
+ * everything. Options that are over have no control, so they do not count.
+ */
+export function hasDeclinedEveryOpenOption(
+  votes: ({ optionId: string; type?: VoteType } | undefined)[],
+  pastOptionIds: Set<string>,
+) {
+  const open = votes.filter(
+    (vote) => vote !== undefined && !pastOptionIds.has(vote.optionId),
+  );
+  return open.length > 0 && open.every((vote) => vote?.type === "no");
+}
