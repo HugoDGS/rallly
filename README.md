@@ -196,10 +196,8 @@ Pour tester une feature en mode dev : `git switch <branche>`, le conteneur `rall
 | #4 — Expiration automatique du sondage | Hugo | `feature/poll-deadline` | terminée |
 | #5 — Bloquer le vote sur les dates passées | Lilian | `feature/block-past-dates` | à faire |
 | Libre — Taux de participation | Leyna | `feature/Taux-de-participation` | à faire |
-| Bonus — Badge « prochain créneau » | Hugo | `feature/deadline-badge` | terminée |
 
 > Au départ on avait choisi la #9 (désactiver les commentaires), mais elle existe déjà dans Rallly. On l'a remplacée par la #4.
-> Le badge « prochain créneau » était notre première feature libre, quand on était 2. Depuis l'arrivée de Leyna, la feature libre est le taux de participation et le badge reste en bonus.
 
 ### #4 — Expiration automatique
 
@@ -214,11 +212,6 @@ On réutilise la colonne `deadline` qui existait déjà dans la base, donc il n'
 *Problème* : l'organisateur ne voit pas facilement combien de personnes ont déjà répondu avant de choisir un créneau.
 *Solution* : sous le titre du sondage, on affiche le nombre de participants qui ont voté.
 
-### Bonus — badge « prochain créneau »
-
-*Problème* : en ouvrant un sondage, un participant ne voit pas tout de suite si c'est urgent de répondre.
-*Solution* : sous le titre du sondage, un badge indique le temps restant avant le prochain créneau (« Prochain créneau dans 3 jours »),
-ou « Tous les créneaux sont passés ». Modification uniquement côté interface.
 
 ## Organisation Git
 
