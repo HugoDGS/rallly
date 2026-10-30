@@ -63,6 +63,7 @@ export function VotePage({
                 spaceBrandingAllowed={spaceBrandingAllowed}
                 instanceBranding={instanceBranding}
                 hideAttribution={hideAttribution}
+                participantCount={view.participantCount}
               />
             </aside>
             <section className="flex flex-1 flex-col lg:min-h-0 lg:border-l">

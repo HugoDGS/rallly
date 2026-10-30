@@ -8,6 +8,7 @@ import {
   EventMetaList,
   EventMetaTitle,
 } from "@/features/poll/components/event-meta";
+import { ParticipationRate } from "@/features/poll/components/participation-rate";
 import TruncatedLinkify from "@/features/poll/components/truncated-linkify";
 import { PoweredByLink } from "@/features/poll/vote/components/powered-by-link";
 import { SpaceIcon } from "@/features/space/components/space-icon";
@@ -38,11 +39,14 @@ export async function EventSidebar({
   spaceBrandingAllowed,
   instanceBranding,
   hideAttribution,
+  participantCount,
 }: {
   poll: SidebarPoll;
   spaceBrandingAllowed: boolean;
   instanceBranding: { appName: string; logoIcon?: string };
   hideAttribution: boolean;
+  /** Responses so far; null while the poll hides scores from this viewer. */
+  participantCount?: number | null;
 }) {
   const { t, i18n } = await getTranslation();
 
@@ -76,6 +80,11 @@ export async function EventSidebar({
           </div>
         ) : null}
         <EventMetaTitle>{poll.title}</EventMetaTitle>
+        {participantCount != null ? (
+          <div className="mt-2">
+            <ParticipationRate voterCount={participantCount} />
+          </div>
+        ) : null}
         <EventMetaDescription className="mt-4" content={poll.description} />
         <EventMetaList className="mt-4">
           {poll.user ? (
