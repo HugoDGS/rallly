@@ -2,8 +2,8 @@ name: CI
 
 on:
   push:
-    # main = image de l'infra seule ; feature/* = une image par feature, pour la démo sur la VM
-    branches: [main, "feature/**"]
+    # main = image de l'infra seule ; feature/* = une image par feature ; integration/* = toutes les features, pour la démo sur la VM
+    branches: [main, "feature/**", "integration/**"]
   pull_request:
   workflow_dispatch:
 
