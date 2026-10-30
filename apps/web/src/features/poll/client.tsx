@@ -6,7 +6,7 @@ import type {
   PollDetails,
   PollParticipant,
 } from "@/features/poll/types";
-import { isOptionPast } from "@/features/poll/utils";
+import { isOptionPast, isPastDeadline } from "@/features/poll/utils";
 import { useUser } from "@/features/user/client";
 import { useTranslation } from "@/i18n/client";
 import { useDateTimeConfig } from "@/lib/datetime/client";
@@ -139,10 +139,12 @@ export const usePermissions = () => {
   const { user } = useUser();
   const allOptionsPast = useAllOptionsPast();
 
+  const acceptsVotes = poll.status === "open" && !isPastDeadline(poll.deadline);
+
   return {
-    canAddNewParticipant: poll.status === "open" && !allOptionsPast,
+    canAddNewParticipant: acceptsVotes && !allOptionsPast,
     canEditParticipant: (participantId: string) => {
-      if (poll.status !== "open") {
+      if (!acceptsVotes) {
         return false;
       }
 

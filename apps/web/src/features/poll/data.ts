@@ -731,6 +731,7 @@ export async function getPollDetails({
       createdAt: true,
       status: true,
       closedReason: true,
+      deadline: true,
       hideParticipants: true,
       disableComments: true,
       allowTentativeVotes: true,

@@ -9,6 +9,7 @@ import {
   EventMetaTitle,
 } from "@/features/poll/components/event-meta";
 import { ParticipationRate } from "@/features/poll/components/participation-rate";
+import { PollDeadlineNotice } from "@/features/poll/components/poll-deadline-notice";
 import TruncatedLinkify from "@/features/poll/components/truncated-linkify";
 import { PoweredByLink } from "@/features/poll/vote/components/powered-by-link";
 import { SpaceIcon } from "@/features/space/components/space-icon";
@@ -22,6 +23,8 @@ type SidebarPoll = {
   location: string | null;
   conferencing: PollConferencing | null;
   event: { conferencingUri: string | null } | null;
+  deadline: Date | null;
+  status: string;
   allowTentativeVotes: boolean;
   spaceId: string | null;
   user: { name: string } | null;
@@ -115,6 +118,11 @@ export async function EventSidebar({
             </EventMetaItem>
           ) : null}
         </EventMetaList>
+        {poll.status === "open" ? (
+          <div className="mt-4">
+            <PollDeadlineNotice deadline={poll.deadline} />
+          </div>
+        ) : null}
         <div className="mt-4">
           <VoteLegend allowTentativeVotes={poll.allowTentativeVotes} />
         </div>
