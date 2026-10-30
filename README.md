@@ -195,7 +195,7 @@ Pour tester une feature en mode dev : `git switch <branche>`, le conteneur `rall
 |---|---|---|---|
 | #4 — Expiration automatique du sondage | Hugo | `feature/poll-deadline` | terminée |
 | #5 — Bloquer le vote sur les dates passées | Lilian | `feature/block-past-dates` | à faire |
-| Libre — Taux de participation | Leyna | `feature/Taux-de-participation` | à faire |
+| Libre — Taux de participation | Leyna | `feature/Taux-de-participation` | terminée |
 | #12 — Analyse des résultats | Leyna | `feature/analyse-resultats` | terminée |
 
 > Au départ on avait choisi la #9 (désactiver les commentaires), mais elle existe déjà dans Rallly. On l'a remplacée par la #4.
@@ -212,6 +212,15 @@ On réutilise la colonne `deadline` qui existait déjà dans la base, donc il n'
 
 *Problème* : l'organisateur ne voit pas facilement combien de personnes ont déjà répondu avant de choisir un créneau.
 *Solution* : sous le titre du sondage, on affiche le nombre de participants qui ont voté.
+
+- **Organisateur connecté** (page admin) : « 5 votants sur 8 invités » avec une barre de progression. Les invités sont les invitations
+  envoyées par e-mail (*Partager → Inviter par e-mail*) et non révoquées. Sans invitation, seul le nombre de votants s'affiche.
+- **Participants** : seulement le nombre de votants (« 3 votants »). La liste des invitations reste réservée à l'organisateur.
+  Si le sondage cache les résultats tant qu'on n'a pas voté, le compteur est caché aussi.
+- Quelqu'un peut voter par le lien public sans avoir été invité : il peut donc y avoir plus de votants que d'invités, la barre reste alors pleine.
+- Modification uniquement côté interface, pas de migration. Composant : [`participation-rate.tsx`](apps/web/src/features/poll/components/participation-rate.tsx).
+
+*Démo* : créer un sondage, inviter 3 adresses par e-mail, faire voter `alice` et `bob` → « 2 votants sur 3 invités ».
 
 ### #12 — Analyse des résultats
 
