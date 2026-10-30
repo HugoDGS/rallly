@@ -697,6 +697,8 @@
   "participantEditLinkCopyFailed": "Couldn't copy the edit link. Try again.",
   "participantNoteButton": "Read note from {name}",
   "participants": "Participants",
+  "participationRateOfInvites": "{voterCount, plural, one {# voter} other {# voters}} out of {inviteCount, plural, one {# invitee} other {# invitees}}",
+  "participationRateVoters": "{count, plural, =0 {No voters yet} one {# voter} other {# voters}}",
   "password": "Password",
   "passwordChangedSuccess": "Your password has been changed successfully",
   "passwordIncorrect": "Current password is incorrect",

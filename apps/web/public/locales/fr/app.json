@@ -575,6 +575,8 @@
   "participantCount": "{count, plural, =0 {Aucun participant} one {1 participant} other {# participants}}",
   "participantNoteButton": "Lire la note de {name}",
   "participants": "Participants",
+  "participationRateOfInvites": "{voterCount, plural, one {# votant} other {# votants}} sur {inviteCount, plural, one {# invité} other {# invités}}",
+  "participationRateVoters": "{count, plural, =0 {Aucun votant pour l'instant} one {# votant} other {# votants}}",
   "password": "Mot de passe",
   "passwordChangedSuccess": "Votre mot de passe a été changé avec succès",
   "passwordIncorrect": "Le mot de passe actuel est incorrect",
