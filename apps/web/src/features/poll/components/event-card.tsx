@@ -15,6 +15,7 @@ import {
 } from "@/features/poll/components/event-meta";
 import { ParticipationRate } from "@/features/poll/components/participation-rate";
 import TruncatedLinkify from "@/features/poll/components/truncated-linkify";
+import { IfScoresVisible } from "@/features/poll/components/visibility";
 import VoteIcon from "@/features/poll/components/vote-icon";
 import { SpaceIcon } from "@/features/space/components/space-icon";
 import { useUser } from "@/features/user/client";
@@ -108,9 +109,14 @@ export function EventDetails() {
         </div>
       ) : null}
       <EventMetaTitle>{poll.title}</EventMetaTitle>
-      <div className="mt-2">
-        <PollParticipationRate />
-      </div>
+      {/* Hidden like the scores until the viewer has voted, as on the vote
+          page. The admin page has no visibility provider, so the host always
+          sees it. */}
+      <IfScoresVisible>
+        <div className="mt-2">
+          <PollParticipationRate />
+        </div>
+      </IfScoresVisible>
       <EventMetaDescription className="mt-4" content={poll.description} />
       <EventMetaList className="mt-4">
         {poll.user ? (
