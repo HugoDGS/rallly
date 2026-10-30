@@ -199,7 +199,7 @@
   "dangerZoneAccountDeletion": "Supprimez votre compte et toutes les données qui lui sont associées",
   "dates": "Dates",
   "decline": "Refuser",
-  "declineConfirmDescription": "{count, plural, one {Cela annulera votre option sélectionnée et répondra non à tout.} other {Cela annulera vos # options sélectionnées et répondra non à tout.}}",
+  "declineConfirmDescription": "{count, plural, one {Cela annulera votre option sélectionnée et répondra non à tous les créneaux ouverts.} other {Cela annulera vos # options sélectionnées et répondra non à tous les créneaux ouverts.}}",
   "declineConfirmTitle": "Refuser ?",
   "decreaseSeats": "Diminuer le nombre de sièges",
   "defaultCalendar": "Calendrier par défaut",
@@ -854,5 +854,8 @@
   "you": "Vous",
   "youAreSignedInAs": "Vous êtes connecté en tant que",
   "yourApiKey": "Votre clé API",
-  "yourName": "Votre nom…"
+  "yourName": "Votre nom…",
+  "pastOptionVoteRefused": "Un des créneaux est déjà passé. Rechargez la page pour voir ceux auxquels vous pouvez encore répondre.",
+  "pastOptionVoteTooltip": "Ce créneau est passé",
+  "allOptionsPastNotice": "Tous les créneaux sont passés : les réponses ne sont plus acceptées."
 }
